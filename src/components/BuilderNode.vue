@@ -1,41 +1,40 @@
 <template>
-  <template v-if="!preview">
-    <!-- Ghost preview: dashed outline at snapped target during drag/resize -->
+  <template v-if="!previewMode">
+    <!-- Ghost -->
     <div
       v-if="isDragging || isResizing"
-      class="pointer-events-none absolute z-10 rounded-lg border-2 border-dashed border-blue-400 bg-blue-100/30"
+      class="pointer-events-none absolute rounded-lg border-2 border-dashed"
+      :class="ghostOverlaps ? 'z-[45] border-red-400 bg-red-100/25' : 'z-[15] border-blue-400 bg-blue-100/25'"
       :style="ghostStyle"
     />
 
-    <!-- The element itself -->
     <div
-      class="absolute z-20 select-none"
-      :class="{
-        'z-30': isSelected,
-        'z-40': isDragging || isResizing
-      }"
+      class="absolute select-none"
+      :class="nodeZClass"
       :style="elementStyle"
       @pointerdown.stop="onPointerDown"
+      @click.stop="onClickNode"
     >
-      <!-- Action toolbar (visible when selected, not during drag) -->
+      <!-- Action toolbar -->
       <div
         v-if="isSelected && !isDragging && !isResizing"
         class="absolute -top-7 right-0 z-50 flex items-center gap-1"
       >
-        <span class="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        <span class="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm">
           {{ component.type }}
         </span>
         <button
           class="flex h-5 w-5 items-center justify-center rounded bg-red-500 text-[10px] text-white shadow hover:bg-red-600"
           title="Delete component"
-          @click.stop="onDelete"
+          @pointerdown.stop
+          @click.stop="store.deleteComponent(component.id)"
         >
           ✕
         </button>
       </div>
 
-      <!-- Resize handles (visible when selected) -->
-      <template v-if="isSelected">
+      <!-- Resize handles -->
+      <template v-if="isSelected && !isDragging">
         <div
           v-for="h in HANDLES"
           :key="h"
@@ -49,28 +48,17 @@
         <NodeBody
           :component="component"
           :is-selected="isSelected"
-          :preview="preview"
-          :children="children"
+          :children="childComponents"
           :can-drop="isContainer"
-          @select="select"
+          @select="onClickNode"
           @drop-item="dropIntoContainer"
         >
           <template #children>
             <BuilderNode
-              v-for="child in children"
+              v-for="child in childComponents"
               :key="child.id"
               :component="child"
-              :children="getChildren(child.id)"
-              :col-width="nestedColWidth"
-              :cols="cols"
-              :row-height="rowHeight"
-              :selected-id="selectedId"
-              :preview="preview"
-              :get-children="getChildren"
-              :on-select="onSelect"
-              :on-update-layout="onUpdateLayout"
-              :on-drop-new="onDropNew"
-              :on-delete="onDelete_"
+              :cols="nestedCols"
             />
           </template>
         </NodeBody>
@@ -78,35 +66,21 @@
     </div>
   </template>
 
-  <!-- Preview mode: static absolute positioning -->
-  <div
-    v-else
-    class="absolute"
-    :style="elementStyle"
-  >
+  <!-- Preview mode -->
+  <div v-else class="absolute" :style="elementStyle">
     <NodeBody
       :component="component"
       :is-selected="false"
-      :preview="preview"
-      :children="children"
-      :can-drop="isContainer"
+      :preview="true"
+      :children="childComponents"
+      :can-drop="false"
     >
       <template #children>
         <BuilderNode
-          v-for="child in children"
+          v-for="child in childComponents"
           :key="child.id"
           :component="child"
-          :children="getChildren(child.id)"
-          :col-width="nestedColWidth"
-          :cols="cols"
-          :row-height="rowHeight"
-          :selected-id="null"
-          :preview="preview"
-          :get-children="getChildren"
-          :on-select="onSelect"
-          :on-update-layout="onUpdateLayout"
-          :on-drop-new="onDropNew"
-          :on-delete="onDelete_"
+          :cols="nestedCols"
         />
       </template>
     </NodeBody>
@@ -115,13 +89,16 @@
 
 <script setup>
 import { computed, ref } from "vue";
-import { CONTAINER_TYPES } from "../data/componentCatalog";
+import { CONTAINER_TYPES, CELL_SIZE } from "../data/componentCatalog";
+import { useBuilderStore } from "../stores/builderStore";
 import NodeBody from "./NodeBody.vue";
 
 defineOptions({ name: "BuilderNode" });
 
-const HANDLES = ["n", "s", "e", "w", "nw", "ne", "sw", "se"];
+const store = useBuilderStore();
+const previewMode = store.previewMode;
 
+const HANDLES = ["n", "s", "e", "w", "nw", "ne", "sw", "se"];
 const handleClasses = {
   n: "left-1/2 -top-1 h-2 w-4 -translate-x-1/2 cursor-n-resize rounded-sm border border-blue-400",
   s: "left-1/2 -bottom-1 h-2 w-4 -translate-x-1/2 cursor-s-resize rounded-sm border border-blue-400",
@@ -135,17 +112,7 @@ const handleClasses = {
 
 const props = defineProps({
   component: { type: Object, required: true },
-  children: { type: Array, required: true },
-  colWidth: { type: Number, required: true },
-  cols: { type: Number, required: true },
-  rowHeight: { type: Number, required: true },
-  selectedId: { type: String, default: null },
-  preview: { type: Boolean, default: false },
-  getChildren: { type: Function, required: true },
-  onSelect: { type: Function, required: true },
-  onUpdateLayout: { type: Function, required: true },
-  onDropNew: { type: Function, required: true },
-  onDelete: { type: Function, required: true }
+  cols: { type: Number, required: true }
 });
 
 const isDragging = ref(false);
@@ -155,8 +122,9 @@ const ghostY = ref(0);
 const ghostW = ref(0);
 const ghostH = ref(0);
 
-const isSelected = computed(() => props.selectedId === props.component.id);
+const isSelected = computed(() => store.selectedId.value === props.component.id);
 const isContainer = computed(() => CONTAINER_TYPES.has(props.component.type));
+const childComponents = computed(() => store.getChildren(props.component.id));
 
 const layout = computed(() => {
   const l = props.component.layout;
@@ -167,18 +135,30 @@ const layout = computed(() => {
   return { x, y, w, h };
 });
 
-const xPx = computed(() => layout.value.x * props.colWidth);
-const yPx = computed(() => layout.value.y * props.rowHeight);
-const wPx = computed(() => layout.value.w * props.colWidth);
-const hPx = computed(() => layout.value.h * props.rowHeight);
+const xPx = computed(() => layout.value.x * CELL_SIZE);
+const yPx = computed(() => layout.value.y * CELL_SIZE);
+const wPx = computed(() => layout.value.w * CELL_SIZE);
+const hPx = computed(() => layout.value.h * CELL_SIZE);
+
+const nestedCols = computed(() => {
+  const contentWidth = wPx.value - 18;
+  return Math.max(1, Math.floor(contentWidth / CELL_SIZE));
+});
+
+const nodeZClass = computed(() => {
+  if (isDragging.value || isResizing.value) return "z-40";
+  if (isSelected.value) return "z-30";
+  if (isContainer.value) return "z-[5]";
+  return "z-20";
+});
 
 const elementStyle = computed(() => {
   if (isDragging.value || isResizing.value) {
     return {
-      left: `${ghostX.value * props.colWidth}px`,
-      top: `${ghostY.value * props.rowHeight}px`,
-      width: `${ghostW.value * props.colWidth}px`,
-      height: `${ghostH.value * props.rowHeight}px`
+      left: `${ghostX.value * CELL_SIZE}px`,
+      top: `${ghostY.value * CELL_SIZE}px`,
+      width: `${ghostW.value * CELL_SIZE}px`,
+      height: `${ghostH.value * CELL_SIZE}px`
     };
   }
   return {
@@ -190,28 +170,27 @@ const elementStyle = computed(() => {
 });
 
 const ghostStyle = computed(() => ({
-  left: `${ghostX.value * props.colWidth}px`,
-  top: `${ghostY.value * props.rowHeight}px`,
-  width: `${ghostW.value * props.colWidth}px`,
-  height: `${ghostH.value * props.rowHeight}px`
+  left: `${ghostX.value * CELL_SIZE}px`,
+  top: `${ghostY.value * CELL_SIZE}px`,
+  width: `${ghostW.value * CELL_SIZE}px`,
+  height: `${ghostH.value * CELL_SIZE}px`
 }));
 
-const nestedColWidth = computed(() => {
-  const width = wPx.value - 16;
-  return Math.max(12, Math.floor(width / props.cols));
+const ghostOverlaps = computed(() => {
+  if (!isDragging.value && !isResizing.value) return false;
+  return store.checkOverlap(
+    { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
+    props.component.parentId,
+    props.component.id
+  );
 });
 
-function select() {
-  props.onSelect(props.component.id);
-}
-
-function onDelete_() {
-  props.onDelete(props.component.id);
+function onClickNode() {
+  store.selectComponent(props.component.id);
 }
 
 function onPointerDown(e) {
-  if (props.preview) return;
-  select();
+  store.selectComponent(props.component.id);
 
   const startX = e.clientX;
   const startY = e.clientY;
@@ -230,10 +209,10 @@ function onPointerDown(e) {
     moved = true;
     isDragging.value = true;
 
-    const rawX = orig.x * props.colWidth + dx;
-    const rawY = orig.y * props.rowHeight + dy;
-    ghostX.value = Math.max(0, Math.min(props.cols - orig.w, Math.round(rawX / props.colWidth)));
-    ghostY.value = Math.max(0, Math.round(rawY / props.rowHeight));
+    const rawX = orig.x * CELL_SIZE + dx;
+    const rawY = orig.y * CELL_SIZE + dy;
+    ghostX.value = Math.max(0, Math.min(props.cols - orig.w, Math.round(rawX / CELL_SIZE)));
+    ghostY.value = Math.max(0, Math.round(rawY / CELL_SIZE));
     ghostW.value = orig.w;
     ghostH.value = orig.h;
   }
@@ -242,12 +221,11 @@ function onPointerDown(e) {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     if (moved) {
-      props.onUpdateLayout(props.component.id, {
-        x: ghostX.value,
-        y: ghostY.value,
-        w: ghostW.value,
-        h: ghostH.value
-      });
+      store.updateLayout(
+        props.component.id,
+        { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
+        props.cols
+      );
     }
     isDragging.value = false;
   }
@@ -257,9 +235,7 @@ function onPointerDown(e) {
 }
 
 function onResizeStart(e, handle) {
-  if (props.preview) return;
   e.preventDefault();
-
   const startX = e.clientX;
   const startY = e.clientY;
   const orig = { ...layout.value };
@@ -269,27 +245,21 @@ function onResizeStart(e, handle) {
   ghostW.value = orig.w;
   ghostH.value = orig.h;
 
-  const affectsLeft = handle.includes("w");
-  const affectsRight = handle.includes("e") || handle === "e";
-  const affectsTop = handle.includes("n");
-  const affectsBottom = handle.includes("s") || handle === "s";
+  const left = handle.includes("w");
+  const right = handle.includes("e");
+  const top = handle.includes("n");
+  const bottom = handle.includes("s");
 
   function onMove(ev) {
     isResizing.value = true;
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    const dCols = Math.round(dx / props.colWidth);
-    const dRows = Math.round(dy / props.rowHeight);
+    const dCols = Math.round((ev.clientX - startX) / CELL_SIZE);
+    const dRows = Math.round((ev.clientY - startY) / CELL_SIZE);
 
-    let nx = orig.x;
-    let ny = orig.y;
-    let nw = orig.w;
-    let nh = orig.h;
-
-    if (affectsRight) nw = orig.w + dCols;
-    if (affectsLeft) { nx = orig.x + dCols; nw = orig.w - dCols; }
-    if (affectsBottom) nh = orig.h + dRows;
-    if (affectsTop) { ny = orig.y + dRows; nh = orig.h - dRows; }
+    let nx = orig.x, ny = orig.y, nw = orig.w, nh = orig.h;
+    if (right) nw = orig.w + dCols;
+    if (left) { nx = orig.x + dCols; nw = orig.w - dCols; }
+    if (bottom) nh = orig.h + dRows;
+    if (top) { ny = orig.y + dRows; nh = orig.h - dRows; }
 
     nw = Math.max(1, nw);
     nh = Math.max(1, nh);
@@ -307,12 +277,11 @@ function onResizeStart(e, handle) {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     if (isResizing.value) {
-      props.onUpdateLayout(props.component.id, {
-        x: ghostX.value,
-        y: ghostY.value,
-        w: ghostW.value,
-        h: ghostH.value
-      });
+      store.updateLayout(
+        props.component.id,
+        { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
+        props.cols
+      );
     }
     isResizing.value = false;
   }
@@ -323,6 +292,12 @@ function onResizeStart(e, handle) {
 
 function dropIntoContainer(event) {
   if (!isContainer.value) return;
-  props.onDropNew(event, props.component.id, nestedColWidth.value, props.rowHeight, props.cols);
+  const payload = event.dataTransfer?.getData("application/no-code-item");
+  if (!payload) return;
+  const { type } = JSON.parse(payload);
+  const rect = event.currentTarget.getBoundingClientRect();
+  const rawX = (event.clientX - rect.left) / CELL_SIZE;
+  const rawY = (event.clientY - rect.top) / CELL_SIZE;
+  store.addComponent(type, props.component.id, rawX, rawY, nestedCols.value);
 }
 </script>
