@@ -14,8 +14,9 @@
               <button
                 v-for="item in group.items"
                 :key="item.type"
-                draggable="true"
-                class="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs transition-colors hover:border-blue-300 hover:bg-blue-50"
+                :draggable="!previewMode"
+                class="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs transition-colors"
+                :class="previewMode ? 'cursor-not-allowed opacity-50' : 'hover:border-blue-300 hover:bg-blue-50'"
                 @dragstart="onPaletteDragStart($event, item.type)"
               >
                 <span>{{ item.label }}</span>
@@ -52,7 +53,7 @@
             <div
               class="relative rounded-xl border border-slate-300 bg-white"
               :class="previewMode ? '' : 'canvas-grid'"
-              style="min-height: 768px"
+              :style="{ height: canvasRows * CELL_SIZE + 'px' }"
               @click.stop="deselectAll()"
               @dragover.prevent
               @drop.prevent="onCanvasDrop"
@@ -62,6 +63,7 @@
                 :key="comp.id"
                 :component="comp"
                 :cols="COLS"
+                :rows="canvasRows"
               />
             </div>
           </div>
@@ -89,9 +91,11 @@
             </div>
 
             <div class="space-y-3">
+              <!-- Common -->
               <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
               <FieldText label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
-              <FieldSelect label="Alignment" :model-value="selectedComponent.props.alignment" :options="['left','center','right']" @update:model-value="(v) => p('alignment', v)" />
+              <FieldSelect label="H-Align" :model-value="selectedComponent.props.alignment" :options="['left','center','right']" @update:model-value="(v) => p('alignment', v)" />
+              <FieldSelect label="V-Align" :model-value="selectedComponent.props.valign" :options="['top','middle','bottom']" @update:model-value="(v) => p('valign', v)" />
 
               <div class="rounded-md bg-slate-50 p-2">
                 <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">Grid Position</p>
@@ -103,10 +107,40 @@
                 </div>
               </div>
 
-              <!-- Section Box -->
-              <template v-if="selectedComponent.type === 'section-box'">
+              <!-- Super Section / Section Box -->
+              <template v-if="selectedComponent.type === 'section-box' || selectedComponent.type === 'super-section'">
                 <FieldText label="Section Title" :model-value="selectedComponent.props.title" @update:model-value="(v) => p('title', v)" />
+                <FieldText
+                  v-if="selectedComponent.type === 'super-section'"
+                  label="Subtitle"
+                  :model-value="selectedComponent.props.subtitle"
+                  @update:model-value="(v) => p('subtitle', v)"
+                />
                 <FieldSelect label="Icon" :model-value="selectedComponent.props.icon" :options="['folder','user','settings','star','list','chart']" @update:model-value="(v) => p('icon', v)" />
+                <FieldColor
+                  v-if="selectedComponent.type === 'super-section'"
+                  label="Background Color"
+                  :model-value="selectedComponent.props.bgColor"
+                  @update:model-value="(v) => p('bgColor', v)"
+                />
+                <FieldColor
+                  v-if="selectedComponent.type === 'section-box'"
+                  label="Background Color"
+                  :model-value="selectedComponent.props.bgColor"
+                  @update:model-value="(v) => p('bgColor', v)"
+                />
+              </template>
+
+              <!-- Accordion -->
+              <template v-if="selectedComponent.type === 'accordion'">
+                <FieldText label="Accordion Title" :model-value="selectedComponent.props.title" @update:model-value="(v) => p('title', v)" />
+                <FieldText label="Panels (comma-separated)" :model-value="selectedComponent.props.panels" @update:model-value="(v) => p('panels', v)" />
+                <FieldSelect
+                  label="Active Panel"
+                  :model-value="selectedComponent.props.activePanel"
+                  :options="panelOptions"
+                  @update:model-value="(v) => p('activePanel', v)"
+                />
               </template>
 
               <!-- Text Input -->
@@ -114,6 +148,7 @@
                 <FieldText label="Placeholder" :model-value="selectedComponent.props.placeholder" @update:model-value="(v) => p('placeholder', v)" />
                 <FieldSelect label="Input Type" :model-value="selectedComponent.props.inputType" :options="['text','number','email','tel','password']" @update:model-value="(v) => p('inputType', v)" />
                 <FieldNumber label="Max Length" :model-value="selectedComponent.props.maxLength" @update:model-value="(v) => p('maxLength', v)" />
+                <FieldText label="Input Mask (e.g. 000-0000-0000)" :model-value="selectedComponent.props.mask" @update:model-value="(v) => p('mask', v)" />
               </template>
 
               <!-- Combo / Radio -->
@@ -125,6 +160,8 @@
               <template v-if="selectedComponent.type === 'data-fact'">
                 <FieldText label="Value" :model-value="selectedComponent.props.value" @update:model-value="(v) => p('value', v)" />
                 <FieldSelect label="Display" :model-value="selectedComponent.props.displayMode" :options="['side-by-side','stacked']" @update:model-value="(v) => p('displayMode', v)" />
+                <FieldText label="Data Path (@apiData.user.phone)" :model-value="selectedComponent.props.dataPath" @update:model-value="(v) => p('dataPath', v)" />
+                <FieldColor label="Background Color" :model-value="selectedComponent.props.bgColor" @update:model-value="(v) => p('bgColor', v)" />
               </template>
 
               <!-- Status Badge -->
@@ -133,16 +170,70 @@
                 <FieldSelect label="Tone" :model-value="selectedComponent.props.tone" :options="['default','success','warning','error']" @update:model-value="(v) => p('tone', v)" />
               </template>
 
-              <!-- Buttons -->
-              <template v-if="selectedComponent.type === 'primary-button' || selectedComponent.type === 'secondary-button'">
+              <!-- Divider -->
+              <template v-if="selectedComponent.type === 'divider'">
+                <FieldColor label="Color" :model-value="selectedComponent.props.color" @update:model-value="(v) => p('color', v)" />
+                <FieldNumber label="Vertical Padding (px)" :model-value="selectedComponent.props.paddingY" @update:model-value="(v) => p('paddingY', v)" />
+              </template>
+
+              <!-- Button -->
+              <template v-if="selectedComponent.type === 'action-button'">
                 <FieldText label="Button Text" :model-value="selectedComponent.props.text" @update:model-value="(v) => p('text', v)" />
                 <FieldSelect label="Action Type" :model-value="selectedComponent.props.actionType" :options="['submit','navigate','api-call','open-modal']" @update:model-value="(v) => p('actionType', v)" />
+                <FieldSelect
+                  label="Icon"
+                  :model-value="selectedComponent.props.icon"
+                  :options="['none','search','plus','edit','delete','check','arrow','download','refresh','save']"
+                  @update:model-value="(v) => p('icon', v)"
+                />
+                <FieldSelect
+                  label="Color Preset"
+                  :model-value="selectedComponent.props.colorPreset"
+                  :options="['primary','secondary','success','danger','warning','dark','custom']"
+                  @update:model-value="(v) => p('colorPreset', v)"
+                />
+                <template v-if="selectedComponent.props.colorPreset === 'custom'">
+                  <FieldColor label="Background Color" :model-value="selectedComponent.props.customBgColor" @update:model-value="(v) => p('customBgColor', v)" />
+                  <FieldColor label="Text Color" :model-value="selectedComponent.props.customTextColor" @update:model-value="(v) => p('customTextColor', v)" />
+                </template>
+                <div class="rounded-md border border-slate-200 p-2">
+                  <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">Parameter Mapping</p>
+                  <FieldText label="Params (key:$fieldId.value, ...)" :model-value="selectedComponent.props.params" @update:model-value="(v) => p('params', v)" />
+                  <div v-if="parsedParams.length" class="mt-2 space-y-1">
+                    <div v-for="pm in parsedParams" :key="pm.key" class="flex items-center gap-1 rounded bg-slate-50 px-2 py-1 text-[10px]">
+                      <span class="font-mono font-semibold text-blue-600">{{ pm.key }}</span>
+                      <span class="text-slate-400">&rarr;</span>
+                      <span class="font-mono text-slate-600">{{ pm.value }}</span>
+                    </div>
+                  </div>
+                  <div v-if="availableFieldIds.length" class="mt-2 rounded bg-blue-50 p-1.5">
+                    <p class="mb-1 text-[9px] font-medium text-blue-500">Available Field IDs:</p>
+                    <div class="flex flex-wrap gap-1">
+                      <span v-for="fid in availableFieldIds" :key="fid" class="rounded bg-white px-1.5 py-0.5 font-mono text-[9px] text-blue-700 shadow-sm">
+                        ${{ fid }}.value
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </template>
 
               <!-- Data Grid -->
               <template v-if="selectedComponent.type === 'data-grid'">
                 <FieldText label="Data Source Path" :model-value="selectedComponent.props.dataSourcePath" @update:model-value="(v) => p('dataSourcePath', v)" />
-                <FieldText label="Columns (Header:field, ...)" :model-value="selectedComponent.props.columns" @update:model-value="(v) => p('columns', v)" />
+                <div class="rounded-md border border-slate-200 p-2">
+                  <div class="mb-2 flex items-center justify-between">
+                    <p class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Column Definitions</p>
+                    <button class="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-100" @click="addGridColumn">+ Add</button>
+                  </div>
+                  <div class="space-y-1.5">
+                    <div v-for="(col, ci) in gridColumns" :key="ci" class="flex items-center gap-1">
+                      <input :value="col.header" placeholder="Header" class="h-7 w-1/2 rounded border border-slate-300 px-1.5 text-[11px] focus:border-blue-400 focus:outline-none" @input="(e) => updateGridColumn(ci, 'header', e.target.value)" />
+                      <input :value="col.field" placeholder="field" class="h-7 w-1/2 rounded border border-slate-300 px-1.5 font-mono text-[11px] focus:border-blue-400 focus:outline-none" @input="(e) => updateGridColumn(ci, 'field', e.target.value)" />
+                      <button class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-red-400 hover:bg-red-50 hover:text-red-600" @click="removeGridColumn(ci)">✕</button>
+                    </div>
+                    <p v-if="!gridColumns.length" class="text-center text-[10px] text-slate-400">No columns defined</p>
+                  </div>
+                </div>
                 <FieldSelect label="Selection Mode" :model-value="selectedComponent.props.selectionMode" :options="['none','single','multiple']" @update:model-value="(v) => p('selectionMode', v)" />
                 <div class="rounded-md border border-slate-200 p-2">
                   <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">Feature Toggles</p>
@@ -172,12 +263,13 @@
                 <FieldText label="Description" :model-value="selectedComponent.props.cardDescription" @update:model-value="(v) => p('cardDescription', v)" />
                 <FieldText label="Facts (Key: Val, ...)" :model-value="selectedComponent.props.cardFacts" @update:model-value="(v) => p('cardFacts', v)" />
                 <FieldText label="Button Text" :model-value="selectedComponent.props.cardButtonText" @update:model-value="(v) => p('cardButtonText', v)" />
-                <FieldSelect label="Accent Color" :model-value="selectedComponent.props.accentColor" :options="['blue','green','purple','red','amber']" @update:model-value="(v) => p('accentColor', v)" />
+                <FieldColor label="Accent Color" :model-value="selectedComponent.props.accentColor" @update:model-value="(v) => p('accentColor', v)" />
               </template>
 
-              <!-- Address Picker -->
-              <template v-if="selectedComponent.type === 'address-picker'">
-                <FieldText label="Button Label" :model-value="selectedComponent.props.buttonLabel" @update:model-value="(v) => p('buttonLabel', v)" />
+              <!-- Date Picker -->
+              <template v-if="selectedComponent.type === 'date-picker'">
+                <FieldText label="Placeholder" :model-value="selectedComponent.props.placeholder" @update:model-value="(v) => p('placeholder', v)" />
+                <FieldSelect label="Date Format" :model-value="selectedComponent.props.dateFormat" :options="['YYYY-MM-DD','DD/MM/YYYY','MM/DD/YYYY','YYYY.MM.DD']" @update:model-value="(v) => p('dateFormat', v)" />
               </template>
             </div>
           </div>
@@ -203,6 +295,8 @@
 
 <script setup>
 import { computed, ref, h } from "vue";
+import { ColorPicker } from "vue3-colorpicker";
+import "vue3-colorpicker/style.css";
 import BuilderNode from "./BuilderNode.vue";
 import { COMPONENT_CATALOG, COLS, CANVAS_WIDTH, CELL_SIZE } from "../data/componentCatalog";
 import { useBuilderStore } from "../stores/builderStore";
@@ -214,6 +308,7 @@ const {
   previewMode,
   selectedComponent,
   rootComponents,
+  canvasRows,
   deselectAll,
   deleteComponent,
   addComponent,
@@ -222,17 +317,43 @@ const {
 } = store;
 
 const showExport = ref(false);
-const jsonExport = computed(() => JSON.stringify(state, null, 2));
+const jsonExport = computed(() => {
+  const exportData = {
+    _meta: {
+      version: "1.0.0",
+      schema: "no-code-ui-builder",
+      exportedAt: new Date().toISOString(),
+      gridConfig: { cellSize: CELL_SIZE, cols: COLS, canvasWidth: CANVAS_WIDTH }
+    },
+    screenId: state.screenName.toLowerCase().replace(/\s+/g, "_"),
+    screenName: state.screenName,
+    components: state.components.map((c) => ({
+      id: c.id,
+      type: c.type,
+      parentId: c.parentId,
+      layout: { ...c.layout },
+      props: { ...c.props },
+      _binding: {
+        fieldId: c.props.fieldId,
+        dataPath: c.props.dataPath || c.props.dataSourcePath || null,
+        params: c.props.params || null
+      }
+    }))
+  };
+  return JSON.stringify(exportData, null, 2);
+});
 
 function p(key, value) {
   updateProp(key, value);
 }
 
 function onPaletteDragStart(event, type) {
+  if (previewMode.value) { event.preventDefault(); return; }
   event.dataTransfer?.setData("application/no-code-item", JSON.stringify({ type }));
 }
 
 function onCanvasDrop(event) {
+  if (previewMode.value) return;
   const payload = event.dataTransfer?.getData("application/no-code-item");
   if (!payload) return;
   const { type } = JSON.parse(payload);
@@ -240,6 +361,53 @@ function onCanvasDrop(event) {
   const rawX = (event.clientX - rect.left) / CELL_SIZE;
   const rawY = (event.clientY - rect.top) / CELL_SIZE;
   addComponent(type, null, rawX, rawY, COLS);
+}
+
+const panelOptions = computed(() => {
+  const comp = selectedComponent.value;
+  if (!comp || !comp.props?.panels) return [];
+  return String(comp.props.panels).split(",").map((s) => s.trim()).filter(Boolean);
+});
+
+const availableFieldIds = computed(() => {
+  return state.components
+    .filter((c) => c.props?.fieldId && c.id !== selectedComponent.value?.id)
+    .map((c) => c.props.fieldId);
+});
+
+const parsedParams = computed(() => {
+  const comp = selectedComponent.value;
+  if (!comp || !comp.props?.params) return [];
+  return String(comp.props.params)
+    .split(",")
+    .map((s) => {
+      const [key, ...rest] = s.split(":");
+      return { key: key?.trim() || "", value: rest.join(":").trim() || "" };
+    })
+    .filter((pm) => pm.key);
+});
+
+const gridColumns = computed(() => {
+  const cols = selectedComponent.value?.props?.columns;
+  return Array.isArray(cols) ? cols : [];
+});
+
+function addGridColumn() {
+  const cols = Array.isArray(selectedComponent.value?.props?.columns) ? [...selectedComponent.value.props.columns] : [];
+  cols.push({ header: "", field: "" });
+  updateProp("columns", cols);
+}
+
+function updateGridColumn(index, key, value) {
+  const cols = [...(selectedComponent.value?.props?.columns || [])];
+  cols[index] = { ...cols[index], [key]: value };
+  updateProp("columns", cols);
+}
+
+function removeGridColumn(index) {
+  const cols = [...(selectedComponent.value?.props?.columns || [])];
+  cols.splice(index, 1);
+  updateProp("columns", cols);
 }
 
 const inputClass = "h-8 w-full rounded-md border border-slate-300 px-2 text-xs focus:border-blue-400 focus:outline-none";
@@ -295,6 +463,34 @@ const FieldSelect = {
             h("option", { key: o, value: o }, o)
           )
         )
+      ]);
+  }
+};
+
+const FieldColor = {
+  props: { label: String, modelValue: String },
+  emits: ["update:modelValue"],
+  setup(props, { emit }) {
+    return () =>
+      h("div", { class: "block text-xs text-slate-600" }, [
+        h("span", { class: "mb-1 block font-medium" }, props.label),
+        h("div", { class: "mb-2 rounded-md border border-slate-200 bg-white p-2" }, [
+          h(ColorPicker, {
+            pureColor: props.modelValue || "#ffffff",
+            isWidget: false,
+            pickerType: "chrome",
+            shape: "square",
+            "onUpdate:pureColor": (value) => emit("update:modelValue", value || "#ffffff")
+          })
+        ]),
+        h("div", { class: "flex items-center gap-2" }, [
+          h("input", {
+            class: inputClass,
+            value: props.modelValue || "#ffffff",
+            placeholder: "#ffffff",
+            onInput: (e) => emit("update:modelValue", e.target.value)
+          })
+        ])
       ]);
   }
 };

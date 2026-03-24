@@ -2,15 +2,64 @@ export const CELL_SIZE = 20;
 export const CANVAS_WIDTH = 1280;
 export const COLS = CANVAS_WIDTH / CELL_SIZE;
 
+export const MOCK_API_DATA = {
+  apiData: {
+    user: {
+      name: "Kim Min-jun",
+      phone: "010-1234-5678",
+      email: "minjun.kim@example.com",
+      status: "Active",
+      plan: "5G Premium",
+      balance: "89,000",
+      address: "Seoul, Gangnam-gu",
+      joinDate: "2023-01-15"
+    },
+    account: {
+      id: "ACC-2024-0042",
+      type: "Premium",
+      credit: "A+",
+      dueDate: "2024-03-25"
+    },
+    response: {
+      customers: [
+        { name: "Kim Min-jun", status: "Active", plan: "5G Premium", amount: "89,000" },
+        { name: "Lee Su-jin", status: "Pending", plan: "LTE Basic", amount: "45,000" },
+        { name: "Park Ji-ho", status: "Active", plan: "5G Standard", amount: "75,000" }
+      ],
+      products: [
+        { title: "5G Premium", price: "89,000", badge: "5G" },
+        { title: "LTE Basic", price: "45,000", badge: "LTE" },
+        { title: "5G Standard", price: "75,000", badge: "5G" }
+      ]
+    }
+  }
+};
+
 export const COMPONENT_CATALOG = [
   {
     group: "Containers",
     items: [
       {
+        type: "super-section",
+        label: "Super Section",
+        defaultSize: { w: 64, h: 30 },
+        defaultProps: { title: "Super Section", subtitle: "", icon: "folder", bgColor: "#ffffff" }
+      },
+      {
         type: "section-box",
         label: "Section Box",
         defaultSize: { w: 32, h: 16 },
-        defaultProps: { title: "Section Title", icon: "folder" }
+        defaultProps: { title: "Section Title", icon: "folder", bgColor: "#ffffff" }
+      },
+      {
+        type: "accordion",
+        label: "Accordion",
+        defaultSize: { w: 32, h: 16 },
+        defaultProps: {
+          title: "Payment Method",
+          panels: "Cash, Card, Installment",
+          activePanel: "Cash"
+        }
       }
     ]
   },
@@ -21,7 +70,7 @@ export const COMPONENT_CATALOG = [
         type: "text-input",
         label: "Text Input",
         defaultSize: { w: 16, h: 4 },
-        defaultProps: { placeholder: "Enter value", maxLength: 120, inputType: "text" }
+        defaultProps: { placeholder: "Enter value", maxLength: 120, inputType: "text", mask: "" }
       },
       {
         type: "combo-box",
@@ -36,10 +85,10 @@ export const COMPONENT_CATALOG = [
         defaultProps: { options: "Yes, No" }
       },
       {
-        type: "address-picker",
-        label: "Address Picker",
-        defaultSize: { w: 32, h: 4 },
-        defaultProps: { buttonLabel: "Search" }
+        type: "date-picker",
+        label: "Date Picker",
+        defaultSize: { w: 16, h: 4 },
+        defaultProps: { placeholder: "YYYY-MM-DD", dateFormat: "YYYY-MM-DD" }
       }
     ]
   },
@@ -50,7 +99,7 @@ export const COMPONENT_CATALOG = [
         type: "data-fact",
         label: "Data Fact",
         defaultSize: { w: 16, h: 4 },
-        defaultProps: { value: "N/A", displayMode: "side-by-side" }
+        defaultProps: { value: "N/A", displayMode: "side-by-side", dataPath: "", bgColor: "#ffffff" }
       },
       {
         type: "status-badge",
@@ -62,19 +111,19 @@ export const COMPONENT_CATALOG = [
         type: "divider",
         label: "Divider",
         defaultSize: { w: 32, h: 2 },
-        defaultProps: {}
-      }
-    ]
-  },
-  {
-    group: "Advanced",
-    items: [
+        defaultProps: { color: "#cbd5e1", paddingY: 4 }
+      },
       {
         type: "data-grid",
         label: "Data Grid",
         defaultSize: { w: 48, h: 14 },
         defaultProps: {
-          columns: "Name:name, Status:status, Plan:plan, Amount:amount",
+          columns: [
+            { header: "Name", field: "name" },
+            { header: "Status", field: "status" },
+            { header: "Plan", field: "plan" },
+            { header: "Amount", field: "amount" }
+          ],
           selectionMode: "single",
           isEditable: false,
           allowAddRow: false,
@@ -82,7 +131,7 @@ export const COMPONENT_CATALOG = [
           isReadOnly: true,
           pagination: true,
           pageSize: 10,
-          dataSourcePath: "api.response.customers"
+          dataSourcePath: "@apiData.response.customers"
         }
       },
       {
@@ -90,7 +139,7 @@ export const COMPONENT_CATALOG = [
         label: "Card List Repeater",
         defaultSize: { w: 20, h: 22 },
         defaultProps: {
-          dataSourcePath: "api.response.products",
+          dataSourcePath: "@apiData.response.products",
           cardTitle: "5G Standard",
           cardBadge: "5G",
           cardPrice: "75,000",
@@ -98,7 +147,7 @@ export const COMPONENT_CATALOG = [
           cardDescription: "High-speed 5G data plan with unlimited streaming and premium content access.",
           cardFacts: "Data: 210GB, Voice: Unlimited, SMS: Unlimited, Tethering: 30GB",
           cardButtonText: "Select Plan",
-          accentColor: "blue"
+          accentColor: "#3b82f6"
         }
       }
     ]
@@ -107,19 +156,21 @@ export const COMPONENT_CATALOG = [
     group: "Actions",
     items: [
       {
-        type: "primary-button",
-        label: "Primary Button",
+        type: "action-button",
+        label: "Button",
         defaultSize: { w: 12, h: 4 },
-        defaultProps: { text: "Submit", actionType: "submit" }
-      },
-      {
-        type: "secondary-button",
-        label: "Secondary Button",
-        defaultSize: { w: 12, h: 4 },
-        defaultProps: { text: "Cancel", actionType: "navigate" }
+        defaultProps: {
+          text: "Submit",
+          actionType: "submit",
+          icon: "none",
+          params: "",
+          colorPreset: "primary",
+          customBgColor: "#3b82f6",
+          customTextColor: "#ffffff"
+        }
       }
     ]
   }
 ];
 
-export const CONTAINER_TYPES = new Set(["section-box", "card-list-repeater"]);
+export const CONTAINER_TYPES = new Set(["super-section", "section-box", "accordion", "card-list-repeater"]);

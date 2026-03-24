@@ -59,6 +59,7 @@
               :key="child.id"
               :component="child"
               :cols="nestedCols"
+              :rows="nestedRows"
             />
           </template>
         </NodeBody>
@@ -81,6 +82,7 @@
           :key="child.id"
           :component="child"
           :cols="nestedCols"
+          :rows="nestedRows"
         />
       </template>
     </NodeBody>
@@ -112,7 +114,8 @@ const handleClasses = {
 
 const props = defineProps({
   component: { type: Object, required: true },
-  cols: { type: Number, required: true }
+  cols: { type: Number, required: true },
+  rows: { type: Number, default: 9999 }
 });
 
 const isDragging = ref(false);
@@ -143,6 +146,14 @@ const hPx = computed(() => layout.value.h * CELL_SIZE);
 const nestedCols = computed(() => {
   const contentWidth = wPx.value - 18;
   return Math.max(1, Math.floor(contentWidth / CELL_SIZE));
+});
+
+const nestedRows = computed(() => {
+  const type = props.component.type;
+  if (type === 'super-section') return Math.max(1, layout.value.h - 3);
+  if (type === 'section-box') return Math.max(1, layout.value.h - 3);
+  if (type === 'accordion') return Math.max(1, layout.value.h - 5);
+  return Math.max(1, layout.value.h - 3);
 });
 
 const nodeZClass = computed(() => {
@@ -212,7 +223,7 @@ function onPointerDown(e) {
     const rawX = orig.x * CELL_SIZE + dx;
     const rawY = orig.y * CELL_SIZE + dy;
     ghostX.value = Math.max(0, Math.min(props.cols - orig.w, Math.round(rawX / CELL_SIZE)));
-    ghostY.value = Math.max(0, Math.round(rawY / CELL_SIZE));
+    ghostY.value = Math.max(0, Math.min(props.rows - orig.h, Math.round(rawY / CELL_SIZE)));
     ghostW.value = orig.w;
     ghostH.value = orig.h;
   }
@@ -224,7 +235,8 @@ function onPointerDown(e) {
       store.updateLayout(
         props.component.id,
         { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
-        props.cols
+        props.cols,
+        props.rows
       );
     }
     isDragging.value = false;
@@ -266,6 +278,7 @@ function onResizeStart(e, handle) {
     nx = Math.max(0, nx);
     ny = Math.max(0, ny);
     if (nx + nw > props.cols) nw = props.cols - nx;
+    if (ny + nh > props.rows) nh = props.rows - ny;
 
     ghostX.value = nx;
     ghostY.value = ny;
@@ -280,7 +293,8 @@ function onResizeStart(e, handle) {
       store.updateLayout(
         props.component.id,
         { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
-        props.cols
+        props.cols,
+        props.rows
       );
     }
     isResizing.value = false;
@@ -291,7 +305,7 @@ function onResizeStart(e, handle) {
 }
 
 function dropIntoContainer(event) {
-  if (!isContainer.value) return;
+  if (!isContainer.value || previewMode.value) return;
   const payload = event.dataTransfer?.getData("application/no-code-item");
   if (!payload) return;
   const { type } = JSON.parse(payload);

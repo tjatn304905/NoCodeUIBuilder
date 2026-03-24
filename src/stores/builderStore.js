@@ -1,5 +1,5 @@
 import { reactive, ref, computed } from "vue";
-import { COMPONENT_CATALOG, COLS } from "../data/componentCatalog";
+import { COMPONENT_CATALOG, COLS, CELL_SIZE } from "../data/componentCatalog";
 
 let uid = 1;
 
@@ -20,6 +20,19 @@ const rootComponents = computed(() =>
   state.components.filter((c) => c.parentId === null)
 );
 
+const MIN_CANVAS_ROWS = 40;
+
+const canvasRows = computed(() => {
+  let maxBottom = MIN_CANVAS_ROWS;
+  for (const c of state.components) {
+    if (c.parentId === null) {
+      const bottom = c.layout.y + c.layout.h;
+      if (bottom > maxBottom) maxBottom = bottom;
+    }
+  }
+  return maxBottom + 2;
+});
+
 function createComponent(type, parentId, layout, extraProps = {}) {
   const id = `cmp_${uid++}`;
   const descriptor = findDescriptor(type);
@@ -32,6 +45,7 @@ function createComponent(type, parentId, layout, extraProps = {}) {
       fieldId: extraProps.fieldId ?? `${type.replaceAll("-", "_")}_${id}`,
       label: descriptor?.label ?? labelFromType(type),
       alignment: "left",
+      valign: "top",
       ...(descriptor?.defaultProps ?? {}),
       ...extraProps
     }
@@ -39,10 +53,59 @@ function createComponent(type, parentId, layout, extraProps = {}) {
 }
 
 function init() {
+  const superSection = createComponent("super-section", null, { x: 0, y: 0, w: 64, h: 28 }, {
+    title: "Customer Management",
+    subtitle: "Search and manage telecom customer accounts",
+    icon: "user",
+    bgColor: "#ffffff"
+  });
+
+  const sectionProfile = createComponent("section-box", superSection.id, { x: 0, y: 0, w: 30, h: 20 }, {
+    title: "Customer Profile",
+    icon: "user"
+  });
+
+  const sectionAccount = createComponent("section-box", superSection.id, { x: 31, y: 0, w: 30, h: 20 }, {
+    title: "Account Details",
+    icon: "chart"
+  });
+
+  const inputName = createComponent("text-input", sectionProfile.id, { x: 0, y: 0, w: 26, h: 4 }, {
+    label: "Customer Name", fieldId: "customer_name", placeholder: "Enter name"
+  });
+  const inputPhone = createComponent("text-input", sectionProfile.id, { x: 0, y: 5, w: 26, h: 4 }, {
+    label: "Phone Number", fieldId: "customer_phone", mask: "000-0000-0000", inputType: "tel"
+  });
+  const factStatus = createComponent("data-fact", sectionProfile.id, { x: 0, y: 10, w: 12, h: 4 }, {
+    label: "Status", fieldId: "status", dataPath: "@apiData.user.status"
+  });
+  const factPlan = createComponent("data-fact", sectionProfile.id, { x: 13, y: 10, w: 13, h: 4 }, {
+    label: "Plan", fieldId: "plan", dataPath: "@apiData.user.plan"
+  });
+
+  const factAccId = createComponent("data-fact", sectionAccount.id, { x: 0, y: 0, w: 13, h: 4 }, {
+    label: "Account ID", fieldId: "acc_id", dataPath: "@apiData.account.id"
+  });
+  const factCredit = createComponent("data-fact", sectionAccount.id, { x: 14, y: 0, w: 12, h: 4 }, {
+    label: "Credit Rating", fieldId: "credit", dataPath: "@apiData.account.credit"
+  });
+  const factBalance = createComponent("data-fact", sectionAccount.id, { x: 0, y: 5, w: 13, h: 4 }, {
+    label: "Balance", fieldId: "balance", dataPath: "@apiData.user.balance", value: "89,000"
+  });
+
+  const lookupBtn = createComponent("action-button", null, { x: 0, y: 30, w: 12, h: 4 }, {
+    text: "Lookup", actionType: "api-call", icon: "search", colorPreset: "primary",
+    params: "customer_name:$customer_name.value, phone:$customer_phone.value"
+  });
+  const resetBtn = createComponent("action-button", null, { x: 13, y: 30, w: 12, h: 4 }, {
+    text: "Reset", actionType: "navigate", icon: "refresh", colorPreset: "secondary"
+  });
+
   state.components = [
-    createComponent("section-box", null, { x: 0, y: 0, w: 64, h: 16 }, { title: "Customer Profile", icon: "user" }),
-    createComponent("text-input", null, { x: 0, y: 18, w: 16, h: 4 }, { label: "Customer ID", fieldId: "customer_id" }),
-    createComponent("primary-button", null, { x: 48, y: 18, w: 16, h: 4 }, { text: "Lookup", actionType: "api-call" })
+    superSection, sectionProfile, sectionAccount,
+    inputName, inputPhone, factStatus, factPlan,
+    factAccId, factCredit, factBalance,
+    lookupBtn, resetBtn
   ];
 }
 
@@ -80,7 +143,7 @@ function checkOverlap(layout, parentId, excludeId) {
     .some((s) => rectsOverlap(layout, s.layout));
 }
 
-function resolveOverlap(layout, parentId, excludeId, maxCols) {
+function resolveOverlap(layout, parentId, excludeId, maxCols, maxRows = 9999) {
   const siblings = state.components.filter(
     (c) => c.parentId === parentId && c.id !== excludeId
   );
@@ -94,6 +157,7 @@ function resolveOverlap(layout, parentId, excludeId, maxCols) {
 
   for (let dy = 0; dy < 100; dy++) {
     const ty = layout.y + dy;
+    if (ty + h > maxRows) break;
     if (layout.x + w <= maxCols && !overlaps(layout.x, ty)) {
       return { x: layout.x, y: ty, w, h };
     }
@@ -107,11 +171,15 @@ function resolveOverlap(layout, parentId, excludeId, maxCols) {
   return layout;
 }
 
-function updateLayout(componentId, patch, maxCols = COLS) {
+function updateLayout(componentId, patch, maxCols = COLS, maxRows = 9999) {
   const target = state.components.find((c) => c.id === componentId);
   if (!target) return;
-  const newLayout = { ...target.layout, ...patch };
-  target.layout = resolveOverlap(newLayout, target.parentId, componentId, maxCols);
+  const nl = { ...target.layout, ...patch };
+  nl.x = Math.max(0, nl.x);
+  nl.y = Math.max(0, nl.y);
+  if (nl.x + nl.w > maxCols) nl.w = Math.max(1, maxCols - nl.x);
+  if (nl.y + nl.h > maxRows) nl.y = Math.max(0, maxRows - nl.h);
+  target.layout = resolveOverlap(nl, target.parentId, componentId, maxCols, maxRows);
 }
 
 function addComponent(type, parentId, rawX, rawY, maxCols = COLS) {
@@ -159,6 +227,7 @@ export function useBuilderStore() {
     previewMode,
     selectedComponent,
     rootComponents,
+    canvasRows,
     getChildren,
     selectComponent,
     deselectAll,
