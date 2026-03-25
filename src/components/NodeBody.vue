@@ -1,11 +1,12 @@
 <template>
   <div
+    v-show="!isLogicHidden"
     class="h-full w-full overflow-hidden rounded-lg"
     :class="[
-      previewBorderless ? 'border-transparent bg-slate-900/35 backdrop-blur-sm' : (component.type === 'container' ? 'border-transparent bg-transparent' : 'border border-slate-600 bg-slate-800/95'),
-      !previewBorderless && isSelected && !preview ? 'border-blue-500 ring-2 ring-blue-400/30' : '',
-      component.type === 'divider' ? '!border-transparent bg-transparent !p-0' : (component.type === 'container' ? '!p-0' : 'p-2'),
-      component.type === 'label' ? '' : alignClass
+      rootSurfaceClass,
+      showSelectionRing ? 'border-blue-500 ring-2 ring-blue-400/30' : '',
+      component.type === 'container' ? '!p-0' : 'p-2',
+      cellAlignWrapperClass
     ]"
     :style="componentBgStyle"
     @click.stop="$emit('select')"
@@ -15,7 +16,7 @@
       <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-md" :style="containerFrameStyle">
         <div
           class="relative min-h-0 flex-1 overflow-hidden rounded"
-          :class="preview ? 'border-transparent bg-transparent' : 'border-2 border-dashed border-slate-500/50 bg-slate-900/30'"
+          :class="preview ? 'border-transparent bg-transparent' : 'border-2 border-dashed border-slate-500/50 bg-transparent'"
           @dragover.prevent
           @drop.stop.prevent="$emit('drop-item', $event)"
         >
@@ -27,7 +28,7 @@
       </div>
     </template>
 
-    <!-- Universal Label (text + optional icon) — H/V align via flex justify/items (not root alignClass) -->
+    <!-- Universal Label: H-align → justify-*, V-align → items-* (flex row) -->
     <template v-else-if="component.type === 'label'">
       <div class="flex h-full min-h-0 w-full gap-2 overflow-hidden" :class="labelFlexAlignClass">
         <span
@@ -40,8 +41,9 @@
 
     <!-- Accordion -->
     <template v-else-if="component.type === 'accordion'">
-      <p class="mb-2 truncate text-xs font-semibold text-slate-200">{{ component.props.title }}</p>
-      <div class="space-y-1 overflow-hidden">
+      <div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+      <p class="mb-2 shrink-0 truncate text-xs font-semibold text-slate-200">{{ component.props.title }}</p>
+      <div class="min-h-0 flex-1 space-y-1 overflow-hidden">
         <div v-for="panel in accordionPanels" :key="panel" class="overflow-hidden rounded border border-slate-600">
           <div
             class="flex items-center justify-between px-3 py-1.5 text-xs font-medium"
@@ -65,11 +67,12 @@
           </div>
         </div>
       </div>
+      </div>
     </template>
 
     <!-- Data Grid (AG-Grid Style) -->
     <template v-else-if="component.type === 'data-grid'">
-      <div class="flex h-full flex-col overflow-hidden rounded border border-slate-600 bg-slate-900/40">
+      <div class="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded border border-slate-600 bg-slate-900/40">
         <div class="flex items-center justify-between border-b border-slate-600 bg-slate-900/60 px-2 py-1.5">
           <div class="flex items-center gap-1.5">
             <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Data Grid</span>
@@ -157,8 +160,15 @@
           </div>
         </div>
         <div class="px-3 py-2.5">
-          <button class="pointer-events-none h-8 w-full rounded-md text-xs font-semibold text-white" :style="{ backgroundColor: accentColorHex }">
-            {{ component.props.cardButtonText }}
+          <button
+            type="button"
+            class="h-8 w-full rounded-md text-xs font-semibold text-white transition-opacity"
+            :class="preview ? 'cursor-pointer' : 'pointer-events-none'"
+            :disabled="preview && isPreviewLoading"
+            :style="{ backgroundColor: accentColorHex, ...(preview && isPreviewLoading ? { opacity: 0.65 } : {}) }"
+            @click.stop="onPreviewRun('onClick', $event)"
+          >
+            {{ isPreviewLoading ? "…" : component.props.cardButtonText }}
           </button>
         </div>
       </div>
@@ -176,75 +186,131 @@
 
     <!-- Text Input -->
     <template v-else-if="component.type === 'text-input'">
+      <div :class="formFieldStackClass">
       <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
       <input
         :type="component.props.inputType || 'text'"
         :placeholder="component.props.mask || component.props.placeholder || 'Enter value'"
-        class="pointer-events-none h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200 placeholder:text-slate-500"
+        class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200 placeholder:text-slate-500"
+        :class="preview ? '' : 'pointer-events-none'"
+        :readonly="preview && isLogicReadonly"
+        :value="preview ? previewFieldModel() : ''"
+        @input="onTextPreviewInput"
       />
+      </div>
     </template>
 
     <!-- Combo Box -->
     <template v-else-if="component.type === 'combo-box'">
+      <div :class="formFieldStackClass">
       <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <select class="pointer-events-none h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200">
-        <option v-for="opt in parseOptions(component.props.options)" :key="opt">{{ opt }}</option>
+      <select
+        class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200"
+        :class="preview ? '' : 'pointer-events-none'"
+        :disabled="preview && isLogicReadonly"
+        :value="preview ? previewFieldModel() : (parseOptions(component.props.options)[0] || '')"
+        @change="onComboPreviewChange"
+      >
+        <option v-for="opt in parseOptions(component.props.options)" :key="opt" :value="opt">{{ opt }}</option>
       </select>
+      </div>
     </template>
 
     <!-- Radio Group -->
     <template v-else-if="component.type === 'radio-group'">
+      <div :class="formFieldStackClass">
       <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
       <div class="flex flex-wrap gap-3 text-xs text-slate-300">
-        <label v-for="opt in parseOptions(component.props.options)" :key="opt" class="pointer-events-none inline-flex items-center gap-1.5">
-          <input type="radio" :name="component.id" class="accent-blue-500" />{{ opt }}
+        <label v-for="opt in parseOptions(component.props.options)" :key="opt" class="inline-flex items-center gap-1.5" :class="preview && !isLogicReadonly ? '' : 'pointer-events-none'">
+          <input type="radio" :name="component.id" class="accent-blue-500" :disabled="preview && isLogicReadonly" />{{ opt }}
         </label>
+      </div>
       </div>
     </template>
 
-    <!-- Date Picker -->
-    <template v-else-if="component.type === 'date-picker'">
+    <!-- Address Picker -->
+    <template v-else-if="component.type === 'address-picker'">
+      <div :class="formFieldStackClass">
       <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <div class="relative">
+      <div class="space-y-1">
         <input
-          :placeholder="component.props.placeholder || 'YYYY-MM-DD'"
-          class="pointer-events-none h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 pr-8 text-xs text-slate-200 placeholder:text-slate-500"
+          :placeholder="component.props.line1Placeholder || 'Street, building'"
+          class="h-7 w-full rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
+          :class="preview ? '' : 'pointer-events-none'"
+          :readonly="preview && isLogicReadonly"
+          :value="addressPart('line1')"
+          @input="onAddressPartInput('line1', $event)"
         />
-        <span class="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-slate-500">&#128197;</span>
+        <input
+          :placeholder="component.props.line2Placeholder || 'Apt, floor'"
+          class="h-7 w-full rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
+          :class="preview ? '' : 'pointer-events-none'"
+          :readonly="preview && isLogicReadonly"
+          :value="addressPart('line2')"
+          @input="onAddressPartInput('line2', $event)"
+        />
+        <div class="flex gap-1">
+          <input
+            :placeholder="component.props.cityPlaceholder || 'City'"
+            class="h-7 min-w-0 flex-1 rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
+            :class="preview ? '' : 'pointer-events-none'"
+            :readonly="preview && isLogicReadonly"
+            :value="addressPart('city')"
+            @input="onAddressPartInput('city', $event)"
+          />
+          <input
+            :placeholder="component.props.postalPlaceholder || 'Postal'"
+            class="h-7 w-20 shrink-0 rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
+            :class="preview ? '' : 'pointer-events-none'"
+            :readonly="preview && isLogicReadonly"
+            :value="addressPart('postal')"
+            @input="onAddressPartInput('postal', $event)"
+          />
+        </div>
+      </div>
       </div>
     </template>
 
     <!-- Data Fact -->
     <template v-else-if="component.type === 'data-fact'">
-      <div :class="component.props.displayMode === 'stacked' ? '' : 'flex items-baseline gap-2'">
+      <div :class="dataFactLayoutClass">
         <p class="shrink-0 text-[11px] text-slate-400">{{ component.props.label }}</p>
-        <div class="flex items-baseline gap-1" :class="component.props.displayMode === 'stacked' ? 'mt-0.5' : ''">
-          <p class="text-sm font-semibold text-slate-100">{{ resolvedFactValue }}</p>
-        </div>
+        <p class="min-w-0 break-words text-sm font-semibold text-slate-100">{{ resolvedFactValue }}</p>
       </div>
     </template>
 
     <!-- Status Badge -->
     <template v-else-if="component.type === 'status-badge'">
-      <div class="flex h-full items-center">
+      <div class="flex h-full min-h-0 w-full min-w-0" :class="hvCrossAxisFlexClass">
         <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold" :class="badgeToneClass">{{ component.props.status }}</span>
       </div>
     </template>
 
     <!-- Divider -->
     <template v-else-if="component.type === 'divider'">
-      <div class="flex h-full items-center" :style="dividerPaddingStyle">
-        <div class="h-px w-full" :style="{ backgroundColor: dividerColorHex }" />
-      </div>
+      <!--
+        Divider 배치 로직:
+        - outer root가 flex(row) + align/valign 기반으로 위치를 잡아주고,
+        - 여기서는 라인 엘리먼트만 orientation/thickness로 크기 조절해서 렌더링합니다.
+
+        horizontal: width=100%, height=thickness, valign(top/middle/bottom)에 따라 y 위치
+        vertical: width=thickness, height=100%, alignment(left/center/right)에 따라 x 위치
+      -->
+      <div class="shrink-0" :style="dividerLineStyle" />
     </template>
 
     <!-- Action Button -->
     <template v-else-if="component.type === 'action-button'">
-      <div class="flex h-full items-center">
+      <div class="flex h-full min-h-0 w-full min-w-0" :class="hvCrossAxisFlexClass">
         <button
-          class="pointer-events-none flex h-8 w-full items-center justify-center gap-1.5 rounded-md px-4 text-xs font-semibold"
-          :style="buttonStyle"
+          type="button"
+          class="flex h-8 w-full items-center justify-center gap-1.5 rounded-md px-4 text-xs font-semibold transition-opacity"
+          :class="preview ? 'cursor-pointer' : 'pointer-events-none'"
+          :disabled="preview && isPreviewLoading"
+          :style="{ ...buttonStyle, ...(preview && isPreviewLoading ? { opacity: 0.65 } : {}) }"
+          @click.stop="onPreviewRun('onClick', $event)"
         >
+          <span v-if="isPreviewLoading" class="text-[10px]">…</span>
           <span v-if="buttonIconChar" class="text-sm leading-none">{{ buttonIconChar }}</span>
           <span>{{ component.props.text }}</span>
         </button>
@@ -254,8 +320,10 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { MOCK_API_DATA, DEFAULT_CONTAINER_BG, CONTAINER_TYPES } from "../data/componentCatalog";
+import { computed, inject } from "vue";
+import { MOCK_API_DATA, DEFAULT_CONTAINER_BG, DEFAULT_DATA_FACT_BG, CONTAINER_TYPES } from "../data/componentCatalog";
+import { PREVIEW_CTX } from "../runtime/previewContext";
+import { resolveDataSource as resolveBinding, evaluateLogicCon } from "../runtime/runtimeEngine";
 
 const props = defineProps({
   component: { type: Object, required: true },
@@ -267,24 +335,116 @@ const props = defineProps({
 
 defineEmits(["select", "drop-item"]);
 
+const previewCtx = inject(PREVIEW_CTX, null);
+
+const logicEvalCtx = computed(() => ({
+  fieldValues: previewCtx?.fieldValues || {},
+  runtimeVars: previewCtx?.runtimeVars || {}
+}));
+
+const isLogicHidden = computed(() => {
+  if (!props.preview) return false;
+  return evaluateLogicCon(props.component.props?.hiddenCon, logicEvalCtx.value);
+});
+
+const isLogicReadonly = computed(() => {
+  if (!props.preview) return false;
+  return evaluateLogicCon(props.component.props?.readonlyCon, logicEvalCtx.value);
+});
+
 const previewBorderless = computed(() => {
   return props.preview && !CONTAINER_TYPES.has(props.component.type);
 });
 
-const alignClass = computed(() => {
-  const a = props.component.props?.alignment;
-  const v = props.component.props?.valign;
-  const hMap = { center: "text-center", right: "text-right" };
-  const vMap = { middle: "items-center", bottom: "items-end" };
-  const classes = [hMap[a] || "text-left"];
-  if (v && vMap[v]) classes.push("flex flex-col", vMap[v]);
-  return classes.join(" ");
+/** Property editor has no panel background color — keep wrapper transparent in edit and preview. */
+const NO_PANEL_BG_TYPES = new Set(["label", "status-badge"]);
+
+/**
+ * Own background / chrome is drawn inside the component (property colors match canvas).
+ * Root stays transparent so edit vs preview vs editor don't stack conflicting panel tints.
+ */
+const SELF_CHROME_TYPES = new Set([
+  "data-fact",
+  "action-button",
+  "text-input",
+  "combo-box",
+  "radio-group",
+  "address-picker",
+  "card-list-repeater",
+  "data-grid",
+  "accordion"
+]);
+
+const rootSurfaceClass = computed(() => {
+  if (props.component.type === "divider") {
+    return props.preview
+      ? "border-transparent bg-transparent"
+      : "border border-slate-600 bg-transparent";
+  }
+  if (NO_PANEL_BG_TYPES.has(props.component.type)) return "border-transparent bg-transparent";
+  if (SELF_CHROME_TYPES.has(props.component.type)) {
+    return props.preview
+      ? "border-transparent bg-transparent"
+      : "border border-slate-600 bg-transparent";
+  }
+  if (previewBorderless.value) return "border-transparent bg-slate-900/35 backdrop-blur-sm";
+  if (props.component.type === "container") return "border-transparent bg-transparent";
+  return "border border-slate-600 bg-slate-800/95";
+});
+
+const showSelectionRing = computed(() => props.isSelected && !props.preview);
+
+/** alignment prop = horizontal; valign = vertical (grid cell, flex-row semantics). */
+function cellHVParts() {
+  const a = props.component.props?.alignment || "left";
+  const v = props.component.props?.valign || "top";
+  const justifyH = { left: "justify-start", center: "justify-center", right: "justify-end" };
+  const itemsV = { top: "items-start", middle: "items-center", bottom: "items-end" };
+  return {
+    justify: justifyH[a] || justifyH.left,
+    items: itemsV[v] || itemsV.top
+  };
+}
+
+const SKIP_ROOT_CELL_ALIGN = new Set(["container", "label"]);
+
+const cellAlignWrapperClass = computed(() => {
+  if (SKIP_ROOT_CELL_ALIGN.has(props.component.type)) return "";
+  const { justify, items } = cellHVParts();
+  return `flex h-full min-h-0 w-full min-w-0 ${justify} ${items}`;
+});
+
+/** Inner flex row: same H/V mapping (badge, button row). */
+const hvCrossAxisFlexClass = computed(() => {
+  const { justify, items } = cellHVParts();
+  return `${justify} ${items}`;
+});
+
+/** Label + control column; horizontal align in cell comes from root justify-* when content is narrower than cell. */
+const formFieldStackClass = "flex min-h-0 w-full min-w-0 flex-col gap-1";
+
+const dataFactLayoutClass = computed(() => {
+  const p = props.component.props || {};
+  const a = p.alignment || "left";
+  const v = p.valign || "top";
+  const justifyH = { left: "justify-start", center: "justify-center", right: "justify-end" };
+  const itemsV = { top: "items-start", middle: "items-center", bottom: "items-end" };
+  const itemsH = { left: "items-start", center: "items-center", right: "items-end" };
+  const justifyV = { top: "justify-start", middle: "justify-center", bottom: "justify-end" };
+  if (p.displayMode === "stacked") {
+    return `flex w-full min-h-0 flex-col gap-0.5 ${itemsH[a] || itemsH.left} ${justifyV[v] || justifyV.top}`;
+  }
+  return `flex w-full min-h-0 flex-row flex-wrap items-baseline gap-2 ${justifyH[a] || justifyH.left} ${itemsV[v] || itemsV.top}`;
 });
 
 function resolveDataPath(path) {
   if (!path) return null;
+  const rv = previewCtx?.runtimeVars;
+  const fromState = resolveBinding(path, rv || {});
+  if (fromState !== null && fromState !== undefined) return fromState;
   const cleanPath = path.startsWith("@") ? path.slice(1) : path;
-  const keys = cleanPath.split(".");
+  if (cleanPath.startsWith("state.")) return null;
+  const keys = cleanPath.split(".").filter(Boolean);
   let obj = MOCK_API_DATA;
   for (const key of keys) {
     if (obj == null || typeof obj !== "object") return null;
@@ -292,6 +452,69 @@ function resolveDataPath(path) {
   }
   return obj ?? null;
 }
+
+function previewFieldModel() {
+  const fid = props.component.props?.fieldId;
+  if (!fid || !previewCtx?.fieldValues) return "";
+  return previewCtx.fieldValues[fid] ?? "";
+}
+
+function setPreviewField(v) {
+  const fid = props.component.props?.fieldId;
+  if (fid && previewCtx?.fieldValues) previewCtx.fieldValues[fid] = v;
+}
+
+function onPreviewRun(trigger, e) {
+  if (e) e.stopPropagation();
+  if (!props.preview || !previewCtx?.runPreviewTrigger) return;
+  previewCtx.runPreviewTrigger(props.component.id, trigger);
+}
+
+function onTextPreviewInput(e) {
+  if (!props.preview || !previewCtx) return;
+  setPreviewField(e.target.value);
+  onPreviewRun("onChange");
+}
+
+function onComboPreviewChange(e) {
+  if (!props.preview || !previewCtx) return;
+  setPreviewField(e.target.value);
+  onPreviewRun("onChange");
+}
+
+function parseAddressBlob(raw) {
+  if (raw == null || raw === "") return { line1: "", line2: "", city: "", postal: "" };
+  try {
+    const o = JSON.parse(String(raw));
+    if (o && typeof o === "object")
+      return {
+        line1: String(o.line1 ?? ""),
+        line2: String(o.line2 ?? ""),
+        city: String(o.city ?? ""),
+        postal: String(o.postal ?? "")
+      };
+  } catch { /* fallthrough */ }
+  return { line1: String(raw), line2: "", city: "", postal: "" };
+}
+
+function addressPart(key) {
+  const fid = props.component.props?.fieldId;
+  if (!fid || !previewCtx?.fieldValues) return "";
+  return parseAddressBlob(previewCtx.fieldValues[fid])[key] || "";
+}
+
+function onAddressPartInput(key, e) {
+  if (!props.preview || !previewCtx) return;
+  const fid = props.component.props?.fieldId;
+  if (!fid) return;
+  const cur = { ...parseAddressBlob(previewCtx.fieldValues[fid]), [key]: e.target.value };
+  previewCtx.fieldValues[fid] = JSON.stringify(cur);
+  onPreviewRun("onChange");
+}
+
+const isPreviewLoading = computed(
+  () => props.preview && previewCtx?.loadingByComponent?.[props.component.id]
+);
 
 // --- Container (Section) ---
 const containerFrameStyle = computed(() => {
@@ -336,7 +559,7 @@ const labelIconChar = computed(() => {
   return LABEL_ICON_MAP[icon] ?? String(icon)[0]?.toUpperCase() ?? "";
 });
 
-/** Row flex: justify = horizontal distribution, items = vertical alignment */
+/** Label row: alignment = horizontal (justify), valign = vertical (items). */
 const labelFlexAlignClass = computed(() => {
   const p = props.component.props || {};
   const a = p.alignment || "left";
@@ -406,6 +629,12 @@ const buttonStyle = computed(() => {
 
 const componentBgStyle = computed(() => {
   if (props.component.type === "container") return null;
+  if (props.component.type === "data-fact") {
+    const raw = String(props.component.props?.bgColor ?? "").trim();
+    const lc = raw.toLowerCase();
+    if (!raw || lc === "#ffffff" || lc === "#fff") return { backgroundColor: DEFAULT_DATA_FACT_BG };
+    return { backgroundColor: raw };
+  }
   const bg = props.component.props?.bgColor;
   if (!bg || bg === "#ffffff" || bg === "") return null;
   return { backgroundColor: bg };
@@ -413,7 +642,7 @@ const componentBgStyle = computed(() => {
 
 // --- Data Fact resolved value ---
 const resolvedFactValue = computed(() => {
-  const dp = props.component.props?.dataPath;
+  const dp = props.component.props?.dataPath || props.component.props?.valuePath;
   if (dp) {
     const resolved = resolveDataPath(dp);
     if (resolved != null && typeof resolved !== "object") return String(resolved);
@@ -424,9 +653,28 @@ const resolvedFactValue = computed(() => {
 // --- Divider ---
 const dividerColorHex = computed(() => props.component.props?.color || "#cbd5e1");
 
-const dividerPaddingStyle = computed(() => {
-  const py = Number(props.component.props?.paddingY) || 0;
-  return { paddingTop: `${py}px`, paddingBottom: `${py}px` };
+const dividerOrientation = computed(() => props.component.props?.orientation || "horizontal");
+const dividerThicknessPx = computed(() => {
+  const t = Number(props.component.props?.thickness);
+  if (!Number.isFinite(t) || t <= 0) return 1;
+  return t;
+});
+const dividerLineStyle = computed(() => {
+  const t = dividerThicknessPx.value;
+  if (dividerOrientation.value === "vertical") {
+    return {
+      width: `${t}px`,
+      height: "100%",
+      backgroundColor: dividerColorHex.value,
+      boxSizing: "border-box"
+    };
+  }
+  return {
+    width: "100%",
+    height: `${t}px`,
+    backgroundColor: dividerColorHex.value,
+    boxSizing: "border-box"
+  };
 });
 
 // --- Status Badge ---

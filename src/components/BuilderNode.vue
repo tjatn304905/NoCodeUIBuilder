@@ -152,7 +152,7 @@ const isContainer = computed(() => CONTAINER_TYPES.has(props.component.type));
 const childComponents = computed(() => store.getChildren(props.component.id));
 const dataPathForPreview = computed(() => {
   const p = props.component.props || {};
-  return p.dataSourcePath || p.dataPath || "";
+  return p.dataSourcePath || p.valuePath || p.dataPath || "";
 });
 
 const devMaskTag = computed(

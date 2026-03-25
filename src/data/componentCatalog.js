@@ -5,6 +5,9 @@ export const COLS = CANVAS_WIDTH / CELL_SIZE;
 /** Default fill when Container has showBackground */
 export const DEFAULT_CONTAINER_BG = "#1e293b";
 
+/** Data Fact panel background (dark UI, matches sections) */
+export const DEFAULT_DATA_FACT_BG = DEFAULT_CONTAINER_BG;
+
 export const MOCK_API_DATA = {
   apiData: {
     user: {
@@ -70,7 +73,7 @@ export const COMPONENT_CATALOG = [
     items: [
       {
         type: "text-input",
-        label: "Text Input",
+        label: "Base Input (Masked)",
         defaultSize: { w: 16, h: 4 },
         defaultProps: { placeholder: "Enter value", maxLength: 120, inputType: "text", mask: "" }
       },
@@ -87,10 +90,15 @@ export const COMPONENT_CATALOG = [
         defaultProps: { options: "Yes, No" }
       },
       {
-        type: "date-picker",
-        label: "Date Picker",
-        defaultSize: { w: 16, h: 4 },
-        defaultProps: { placeholder: "YYYY-MM-DD", dateFormat: "YYYY-MM-DD" }
+        type: "address-picker",
+        label: "Address Picker",
+        defaultSize: { w: 24, h: 8 },
+        defaultProps: {
+          line1Placeholder: "Street, building",
+          line2Placeholder: "Apt, floor (optional)",
+          cityPlaceholder: "City",
+          postalPlaceholder: "Postal code"
+        }
       }
     ]
   },
@@ -114,7 +122,7 @@ export const COMPONENT_CATALOG = [
         type: "data-fact",
         label: "Data Fact",
         defaultSize: { w: 16, h: 4 },
-        defaultProps: { value: "N/A", displayMode: "side-by-side", dataPath: "", bgColor: "#ffffff" }
+        defaultProps: { value: "N/A", displayMode: "side-by-side", dataPath: "", valuePath: "", bgColor: DEFAULT_DATA_FACT_BG }
       },
       {
         type: "status-badge",
@@ -126,7 +134,7 @@ export const COMPONENT_CATALOG = [
         type: "divider",
         label: "Divider",
         defaultSize: { w: 32, h: 2 },
-        defaultProps: { color: "#cbd5e1", paddingY: 4 }
+        defaultProps: { color: "#cbd5e1", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle" }
       },
       {
         type: "data-grid",
@@ -172,7 +180,7 @@ export const COMPONENT_CATALOG = [
     items: [
       {
         type: "action-button",
-        label: "Button",
+        label: "Action Button",
         defaultSize: { w: 12, h: 4 },
         defaultProps: {
           text: "Submit",
