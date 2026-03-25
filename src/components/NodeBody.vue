@@ -133,54 +133,46 @@
 
     <!-- Card List Repeater -->
     <template v-else-if="component.type === 'card-list-repeater'">
-      <div class="flex items-center gap-1.5 border-b border-slate-600 pb-1.5">
-        <span class="text-[10px] text-slate-500">&orarr;</span>
-        <span class="text-xs font-semibold text-slate-200">Card Repeater</span>
-      </div>
-
-      <div class="mt-2 overflow-hidden rounded-lg border border-slate-600 bg-slate-900/45 shadow-sm">
-        <div class="flex items-center gap-3 border-b border-slate-600 px-3 py-2.5">
-          <div class="h-8 w-1 shrink-0 rounded-full" :style="{ backgroundColor: accentColorHex }" />
-          <p class="flex-1 truncate text-sm font-bold text-slate-100">{{ component.props.cardTitle }}</p>
-          <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" :style="accentBadgeStyle">
-            {{ component.props.cardBadge }}
-          </span>
-        </div>
-        <div class="border-b border-slate-600 px-3 py-2">
-          <span class="text-lg font-bold text-slate-100">{{ component.props.cardPrice }}</span>
-          <span class="ml-1 text-[11px] text-slate-400">{{ component.props.cardPriceUnit }}</span>
-        </div>
-        <div class="border-b border-slate-600 px-3 py-2">
-          <p class="line-clamp-2 text-[11px] leading-relaxed text-slate-300">{{ component.props.cardDescription }}</p>
-        </div>
-        <div class="space-y-0.5 border-b border-slate-600 px-3 py-2">
-          <div v-for="fact in parseFacts(component.props.cardFacts)" :key="fact.key" class="flex items-center justify-between py-0.5 text-[11px]">
-            <span class="text-slate-400">{{ fact.key }}</span>
-            <span class="font-medium text-slate-100">{{ fact.value }}</span>
+      <div class="flex h-full min-h-0 w-full flex-row overflow-x-auto gap-2 p-1">
+        <div
+          v-for="(card, cardIdx) in repeaterCards"
+          :key="cardIdx"
+          class="shrink-0 overflow-hidden rounded-lg border border-slate-600 bg-slate-900/45 shadow-sm"
+          :style="repeaterCardStyle"
+        >
+          <div class="flex items-center gap-3 border-b border-slate-600 px-3 py-2.5">
+            <div class="h-8 w-1 shrink-0 rounded-full" :style="{ backgroundColor: accentColorHex }" />
+            <p class="flex-1 truncate text-sm font-bold text-slate-100">{{ card.title }}</p>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" :style="accentBadgeStyle">
+              {{ card.badge }}
+            </span>
+          </div>
+          <div class="border-b border-slate-600 px-3 py-2">
+            <span class="text-lg font-bold text-slate-100">{{ card.price }}</span>
+            <span class="ml-1 text-[11px] text-slate-400">{{ component.props.cardPriceUnit }}</span>
+          </div>
+          <div class="border-b border-slate-600 px-3 py-2">
+            <p class="line-clamp-2 text-[11px] leading-relaxed text-slate-300">{{ card.description }}</p>
+          </div>
+          <div class="space-y-0.5 border-b border-slate-600 px-3 py-2">
+            <div v-for="fact in parseFacts(card.facts)" :key="fact.key" class="flex items-center justify-between py-0.5 text-[11px]">
+              <span class="text-slate-400">{{ fact.key }}</span>
+              <span class="font-medium text-slate-100">{{ fact.value }}</span>
+            </div>
+          </div>
+          <div class="px-3 py-2.5">
+            <button
+              type="button"
+              class="h-8 w-full rounded-md text-xs font-semibold text-white transition-opacity"
+              :class="preview ? 'cursor-pointer' : 'pointer-events-none'"
+              :disabled="preview && isPreviewLoading"
+              :style="{ backgroundColor: accentColorHex, ...(preview && isPreviewLoading ? { opacity: 0.65 } : {}) }"
+              @click.stop="onPreviewRun('onClick', $event)"
+            >
+              {{ isPreviewLoading ? "…" : component.props.cardButtonText }}
+            </button>
           </div>
         </div>
-        <div class="px-3 py-2.5">
-          <button
-            type="button"
-            class="h-8 w-full rounded-md text-xs font-semibold text-white transition-opacity"
-            :class="preview ? 'cursor-pointer' : 'pointer-events-none'"
-            :disabled="preview && isPreviewLoading"
-            :style="{ backgroundColor: accentColorHex, ...(preview && isPreviewLoading ? { opacity: 0.65 } : {}) }"
-            @click.stop="onPreviewRun('onClick', $event)"
-          >
-            {{ isPreviewLoading ? "…" : component.props.cardButtonText }}
-          </button>
-        </div>
-      </div>
-
-      <div
-        v-if="canDrop"
-        class="relative mt-2 min-h-[2rem] rounded border border-dashed border-slate-600 bg-slate-900/35 p-2"
-        @dragover.prevent
-        @drop.stop.prevent="$emit('drop-item', $event)"
-      >
-        <slot name="children" />
-        <p v-if="!children.length" class="text-center text-[10px] text-slate-500">Extra card elements</p>
       </div>
     </template>
 
@@ -228,45 +220,34 @@
       </div>
     </template>
 
-    <!-- Address Picker -->
-    <template v-else-if="component.type === 'address-picker'">
+    <!-- Checkbox Group -->
+    <template v-else-if="component.type === 'checkbox-group'">
       <div :class="formFieldStackClass">
       <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <div class="space-y-1">
+      <div class="flex flex-wrap gap-3 text-xs text-slate-300">
+        <label v-for="opt in parseOptions(component.props.options)" :key="opt" class="inline-flex items-center gap-1.5" :class="preview && !isLogicReadonly ? '' : 'pointer-events-none'">
+          <input type="checkbox" class="accent-blue-500" :disabled="preview && isLogicReadonly" @change="onCheckboxPreviewChange" />{{ opt }}
+        </label>
+      </div>
+      </div>
+    </template>
+
+    <!-- Date Picker -->
+    <template v-else-if="component.type === 'date-picker'">
+      <div :class="formFieldStackClass">
+      <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
+      <div class="relative">
         <input
-          :placeholder="component.props.line1Placeholder || 'Street, building'"
-          class="h-7 w-full rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
+          type="date"
+          :placeholder="component.props.placeholder || 'YYYY-MM-DD'"
+          class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 pr-8 text-xs text-slate-200 placeholder:text-slate-500"
           :class="preview ? '' : 'pointer-events-none'"
           :readonly="preview && isLogicReadonly"
-          :value="addressPart('line1')"
-          @input="onAddressPartInput('line1', $event)"
+          :value="preview ? previewFieldModel() : ''"
+          @input="onDatePreviewInput"
+          @change="onDatePreviewInput"
         />
-        <input
-          :placeholder="component.props.line2Placeholder || 'Apt, floor'"
-          class="h-7 w-full rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
-          :class="preview ? '' : 'pointer-events-none'"
-          :readonly="preview && isLogicReadonly"
-          :value="addressPart('line2')"
-          @input="onAddressPartInput('line2', $event)"
-        />
-        <div class="flex gap-1">
-          <input
-            :placeholder="component.props.cityPlaceholder || 'City'"
-            class="h-7 min-w-0 flex-1 rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
-            :class="preview ? '' : 'pointer-events-none'"
-            :readonly="preview && isLogicReadonly"
-            :value="addressPart('city')"
-            @input="onAddressPartInput('city', $event)"
-          />
-          <input
-            :placeholder="component.props.postalPlaceholder || 'Postal'"
-            class="h-7 w-20 shrink-0 rounded border border-slate-600 bg-slate-900/55 px-2 text-[11px] text-slate-200 placeholder:text-slate-500"
-            :class="preview ? '' : 'pointer-events-none'"
-            :readonly="preview && isLogicReadonly"
-            :value="addressPart('postal')"
-            @input="onAddressPartInput('postal', $event)"
-          />
-        </div>
+        <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm text-slate-500">📅</span>
       </div>
       </div>
     </template>
@@ -369,7 +350,8 @@ const SELF_CHROME_TYPES = new Set([
   "text-input",
   "combo-box",
   "radio-group",
-  "address-picker",
+  "checkbox-group",
+  "date-picker",
   "card-list-repeater",
   "data-grid",
   "accordion"
@@ -377,27 +359,25 @@ const SELF_CHROME_TYPES = new Set([
 
 const rootSurfaceClass = computed(() => {
   if (props.component.type === "divider") {
-    return props.preview
-      ? "border-transparent bg-transparent"
-      : "border border-slate-600 bg-transparent";
+    return "border border-blue-400/35 bg-transparent";
   }
   if (NO_PANEL_BG_TYPES.has(props.component.type)) return "border-transparent bg-transparent";
   if (SELF_CHROME_TYPES.has(props.component.type)) {
     return props.preview
       ? "border-transparent bg-transparent"
-      : "border border-slate-600 bg-transparent";
+      : "border border-blue-400/35 bg-transparent";
   }
   if (previewBorderless.value) return "border-transparent bg-slate-900/35 backdrop-blur-sm";
   if (props.component.type === "container") return "border-transparent bg-transparent";
-  return "border border-slate-600 bg-slate-800/95";
+  return "border border-blue-400/35 bg-slate-800/95";
 });
 
 const showSelectionRing = computed(() => props.isSelected && !props.preview);
 
 /** alignment prop = horizontal; valign = vertical (grid cell, flex-row semantics). */
 function cellHVParts() {
-  const a = props.component.props?.alignment || "left";
-  const v = props.component.props?.valign || "top";
+  const a = props.component.props?.alignment || "center";
+  const v = props.component.props?.valign || "middle";
   const justifyH = { left: "justify-start", center: "justify-center", right: "justify-end" };
   const itemsV = { top: "items-start", middle: "items-center", bottom: "items-end" };
   return {
@@ -482,33 +462,14 @@ function onComboPreviewChange(e) {
   onPreviewRun("onChange");
 }
 
-function parseAddressBlob(raw) {
-  if (raw == null || raw === "") return { line1: "", line2: "", city: "", postal: "" };
-  try {
-    const o = JSON.parse(String(raw));
-    if (o && typeof o === "object")
-      return {
-        line1: String(o.line1 ?? ""),
-        line2: String(o.line2 ?? ""),
-        city: String(o.city ?? ""),
-        postal: String(o.postal ?? "")
-      };
-  } catch { /* fallthrough */ }
-  return { line1: String(raw), line2: "", city: "", postal: "" };
-}
-
-function addressPart(key) {
-  const fid = props.component.props?.fieldId;
-  if (!fid || !previewCtx?.fieldValues) return "";
-  return parseAddressBlob(previewCtx.fieldValues[fid])[key] || "";
-}
-
-function onAddressPartInput(key, e) {
+function onCheckboxPreviewChange() {
   if (!props.preview || !previewCtx) return;
-  const fid = props.component.props?.fieldId;
-  if (!fid) return;
-  const cur = { ...parseAddressBlob(previewCtx.fieldValues[fid]), [key]: e.target.value };
-  previewCtx.fieldValues[fid] = JSON.stringify(cur);
+  onPreviewRun("onChange");
+}
+
+function onDatePreviewInput(e) {
+  if (!props.preview || !previewCtx) return;
+  setPreviewField(e.target.value);
   onPreviewRun("onChange");
 }
 
@@ -692,6 +653,39 @@ const accentBadgeStyle = computed(() => ({
   backgroundColor: accentColorHex.value,
   color: "#ffffff"
 }));
+
+const repeaterCardStyle = computed(() => {
+  const p = props.component.props || {};
+  const w = Number(p.cardWidth) || 240;
+  const h = Number(p.cardHeight) || 0;
+  const style = { width: `${w}px` };
+  if (h > 0) style.height = `${h}px`;
+  return style;
+});
+
+const repeaterCards = computed(() => {
+  const p = props.component.props || {};
+  const dp = p.dataSourcePath;
+  if (dp) {
+    const resolved = resolveDataPath(dp);
+    if (Array.isArray(resolved) && resolved.length > 0) {
+      return resolved.map((item) => ({
+        title: item.title ?? item.name ?? p.cardTitle,
+        badge: item.badge ?? item.type ?? p.cardBadge,
+        price: item.price ?? item.amount ?? p.cardPrice,
+        description: item.description ?? p.cardDescription,
+        facts: item.facts ?? p.cardFacts
+      }));
+    }
+  }
+  return [{
+    title: p.cardTitle,
+    badge: p.cardBadge,
+    price: p.cardPrice,
+    description: p.cardDescription,
+    facts: p.cardFacts
+  }];
+});
 
 // --- Data Grid ---
 const parsedColumns = computed(() => {

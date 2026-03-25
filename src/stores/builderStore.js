@@ -26,7 +26,7 @@ function syncGridPosFromLayout(comp) {
 }
 
 const state = reactive({
-  screenName: "Telecom Customer Lookup",
+  screenName: "Canvas",
   components: [],
   logic: {
     variables: [],
@@ -112,60 +112,174 @@ function ensureComponentSchema(comp) {
 }
 
 function init() {
-  const root = createComponent("container", null, { x: 0, y: 0, w: 64, h: 28 }, {
-    showBorder: true, showBackground: true, padding: 12, bgColor: DEFAULT_CONTAINER_BG
+  const W = 40;
+  const P = 6;
+  const IW = 38;
+  const HW = 18;
+  const HX = 20;
+
+  /* ── 1. Page Header Banner ── */
+  const headerBox = createComponent("container", null, { x: 0, y: 0, w: W, h: 7 }, {
+    showBorder: true, showBackground: true, padding: P, bgColor: "#0f172a", fieldId: "section_header"
   });
-  const titleLbl = createComponent("label", root.id, { x: 0, y: 0, w: 50, h: 2 }, {
-    text: "Customer Management", preset: "h2", color: "#f1f5f9", fontWeight: "bold", fieldId: "title_main"
+  const titleLbl = createComponent("label", headerBox.id, { x: 0, y: 0, w: 30, h: 3 }, {
+    text: "Telecom Customer Management", preset: "h2", color: "#f1f5f9", fontWeight: "bold", fieldId: "title_main"
   });
-  const subLbl = createComponent("label", root.id, { x: 0, y: 2, w: 58, h: 2 }, {
-    text: "Search and manage telecom customer accounts", preset: "small", color: "#94a3b8", fontWeight: "normal", fieldId: "subtitle_main"
+  const statusBadge = createComponent("status-badge", headerBox.id, { x: 30, y: 0, w: 8, h: 3 }, {
+    status: "Online", tone: "success", fieldId: "system_status", alignment: "right", valign: "middle"
   });
-  const sectionProfile = createComponent("container", root.id, { x: 0, y: 5, w: 30, h: 20 }, {
-    showBorder: true, showBackground: true, padding: 10, bgColor: DEFAULT_CONTAINER_BG
+  const subtitleLbl = createComponent("label", headerBox.id, { x: 0, y: 3, w: IW, h: 2 }, {
+    text: "Search and manage customer accounts, plans, and billing", preset: "small", color: "#64748b", fontWeight: "normal", fieldId: "subtitle_main"
   });
-  const lblProfile = createComponent("label", sectionProfile.id, { x: 0, y: 0, w: 26, h: 2 }, {
-    text: "Customer Profile", preset: "h3", fieldId: "sec_profile_title"
+
+  /* ── 2. Search Section ── */
+  const searchBox = createComponent("container", null, { x: 0, y: 8, w: W, h: 23 }, {
+    showBorder: true, showBackground: true, padding: P, bgColor: DEFAULT_CONTAINER_BG, fieldId: "section_search"
   });
-  const sectionAccount = createComponent("container", root.id, { x: 31, y: 5, w: 30, h: 20 }, {
-    showBorder: true, showBackground: true, padding: 10, bgColor: DEFAULT_CONTAINER_BG
+  const lblSearch = createComponent("label", searchBox.id, { x: 0, y: 0, w: IW, h: 3 }, {
+    text: "Customer Search", preset: "h3", color: "#f1f5f9", icon: "user", fieldId: "sec_search_title"
   });
-  const lblAccount = createComponent("label", sectionAccount.id, { x: 0, y: 0, w: 26, h: 2 }, {
-    text: "Account Details", preset: "h3", fieldId: "sec_account_title"
+  const inputName = createComponent("text-input", searchBox.id, { x: 0, y: 3, w: HW, h: 4 }, {
+    label: "Customer Name", fieldId: "customer_name", placeholder: "Enter customer name"
   });
-  const inputName = createComponent("text-input", sectionProfile.id, { x: 0, y: 3, w: 26, h: 4 }, {
-    label: "Customer Name", fieldId: "customer_name", placeholder: "Enter name"
-  });
-  const inputPhone = createComponent("text-input", sectionProfile.id, { x: 0, y: 8, w: 26, h: 4 }, {
+  const inputPhone = createComponent("text-input", searchBox.id, { x: HX, y: 3, w: HW, h: 4 }, {
     label: "Phone Number", fieldId: "customer_phone", mask: "000-0000-0000", inputType: "tel"
   });
-  const factStatus = createComponent("data-fact", sectionProfile.id, { x: 0, y: 13, w: 12, h: 4 }, {
-    label: "Status", fieldId: "status", dataPath: "@apiData.user.status"
+  const comboPlan = createComponent("combo-box", searchBox.id, { x: 0, y: 8, w: HW, h: 4 }, {
+    options: "5G Premium, 5G Standard, LTE Basic, LTE Plus", fieldId: "plan_select", label: "Plan Type"
   });
-  const factPlan = createComponent("data-fact", sectionProfile.id, { x: 13, y: 13, w: 13, h: 4 }, {
-    label: "Plan", fieldId: "plan", dataPath: "@apiData.user.plan"
+  const radioType = createComponent("radio-group", searchBox.id, { x: HX, y: 8, w: HW, h: 4 }, {
+    options: "Individual, Corporate, Family", fieldId: "customer_type", label: "Customer Type"
   });
-  const factAccId = createComponent("data-fact", sectionAccount.id, { x: 0, y: 3, w: 13, h: 4 }, {
-    label: "Account ID", fieldId: "acc_id", dataPath: "@apiData.account.id"
+  const checkboxServices = createComponent("checkbox-group", searchBox.id, { x: 0, y: 13, w: HW, h: 4 }, {
+    options: "5G, VoLTE, Roaming, Data Plus", fieldId: "service_options", label: "Additional Services"
   });
-  const factCredit = createComponent("data-fact", sectionAccount.id, { x: 14, y: 3, w: 12, h: 4 }, {
-    label: "Credit Rating", fieldId: "credit", dataPath: "@apiData.account.credit"
+  const searchBtn = createComponent("action-button", searchBox.id, { x: 0, y: 18, w: 12, h: 3 }, {
+    text: "Search", actionType: "api-call", icon: "search", colorPreset: "primary",
+    params: "customer_name:$customer_name.value, phone:$customer_phone.value",
+    fieldId: "btn_search"
   });
-  const factBalance = createComponent("data-fact", sectionAccount.id, { x: 0, y: 8, w: 13, h: 4 }, {
+  const resetBtn = createComponent("action-button", searchBox.id, { x: 13, y: 18, w: 12, h: 3 }, {
+    text: "Reset", actionType: "navigate", icon: "refresh", colorPreset: "secondary",
+    fieldId: "btn_reset"
+  });
+
+  /* ── 3. Customer Info Dashboard ── */
+  const infoBox = createComponent("container", null, { x: 0, y: 32, w: W, h: 15 }, {
+    showBorder: true, showBackground: true, padding: P, bgColor: DEFAULT_CONTAINER_BG, fieldId: "section_info"
+  });
+  const lblInfo = createComponent("label", infoBox.id, { x: 0, y: 0, w: 26, h: 3 }, {
+    text: "Customer Information", preset: "h3", color: "#f1f5f9", icon: "folder", fieldId: "sec_info_title"
+  });
+  const badgeActive = createComponent("status-badge", infoBox.id, { x: 30, y: 0, w: 8, h: 3 }, {
+    status: "Active", tone: "success", fieldId: "cust_status_badge", alignment: "right", valign: "middle"
+  });
+  const factPlan = createComponent("data-fact", infoBox.id, { x: 0, y: 4, w: HW, h: 4 }, {
+    label: "Current Plan", fieldId: "cust_plan", dataPath: "@apiData.user.plan"
+  });
+  const factBalance = createComponent("data-fact", infoBox.id, { x: HX, y: 4, w: HW, h: 4 }, {
     label: "Balance", fieldId: "balance", dataPath: "@apiData.user.balance", value: "89,000"
   });
-  const lookupBtn = createComponent("action-button", null, { x: 0, y: 30, w: 12, h: 4 }, {
-    text: "Lookup", actionType: "api-call", icon: "search", colorPreset: "primary",
-    params: "customer_name:$customer_name.value, phone:$customer_phone.value"
+  const factAccId = createComponent("data-fact", infoBox.id, { x: 0, y: 9, w: HW, h: 4 }, {
+    label: "Account ID", fieldId: "acc_id", dataPath: "@apiData.account.id"
   });
-  const resetBtn = createComponent("action-button", null, { x: 13, y: 30, w: 12, h: 4 }, {
-    text: "Reset", actionType: "navigate", icon: "refresh", colorPreset: "secondary"
+  const factCredit = createComponent("data-fact", infoBox.id, { x: HX, y: 9, w: HW, h: 4 }, {
+    label: "Credit Rating", fieldId: "credit", dataPath: "@apiData.account.credit"
+  });
+
+  /* ── 4. Additional Info ── */
+  const extraBox = createComponent("container", null, { x: 0, y: 48, w: W, h: 9 }, {
+    showBorder: true, showBackground: true, padding: P, bgColor: DEFAULT_CONTAINER_BG, fieldId: "section_extra"
+  });
+  const lblExtra = createComponent("label", extraBox.id, { x: 0, y: 0, w: IW, h: 3 }, {
+    text: "Additional Info", preset: "h3", color: "#f1f5f9", fieldId: "sec_extra_title"
+  });
+  const datePicker = createComponent("date-picker", extraBox.id, { x: 0, y: 3, w: HW, h: 4 }, {
+    fieldId: "join_date", label: "Join Date", placeholder: "YYYY-MM-DD", dateFormat: "YYYY-MM-DD"
+  });
+  const factDueDate = createComponent("data-fact", extraBox.id, { x: HX, y: 3, w: HW, h: 4 }, {
+    label: "Due Date", fieldId: "due_date", dataPath: "@apiData.account.dueDate"
+  });
+
+  /* ── 5. Divider ── */
+  const divider1 = createComponent("divider", null, { x: 0, y: 58, w: W, h: 1 }, {
+    color: "#334155", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle", fieldId: "divider_1"
+  });
+
+  /* ── 6. Customer List (Data Grid) ── */
+  const gridTitle = createComponent("label", null, { x: 0, y: 60, w: 30, h: 3 }, {
+    text: "Customer List", preset: "h3", color: "#f1f5f9", fontWeight: "bold", icon: "list", fieldId: "grid_title"
+  });
+  const dataGrid = createComponent("data-grid", null, { x: 0, y: 63, w: W, h: 14 }, {
+    columns: [
+      { header: "Name", field: "name" },
+      { header: "Status", field: "status" },
+      { header: "Plan", field: "plan" },
+      { header: "Amount", field: "amount" }
+    ],
+    selectionMode: "single",
+    isEditable: false,
+    allowAddRow: false,
+    allowDeleteRow: false,
+    isReadOnly: true,
+    pagination: true,
+    pageSize: 10,
+    dataSourcePath: "@apiData.response.customers",
+    fieldId: "customer_grid"
+  });
+
+  /* ── 7. Divider ── */
+  const divider2 = createComponent("divider", null, { x: 0, y: 78, w: W, h: 1 }, {
+    color: "#334155", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle", fieldId: "divider_2"
+  });
+
+  /* ── 8. Payment Accordion ── */
+  const accordion = createComponent("accordion", null, { x: 0, y: 80, w: W, h: 16 }, {
+    title: "Payment & Billing",
+    panels: "Payment Method, Billing History, Auto-Pay Settings",
+    activePanel: "Payment Method",
+    fieldId: "payment_accordion"
+  });
+
+  /* ── 9. Divider ── */
+  const divider3 = createComponent("divider", null, { x: 0, y: 97, w: W, h: 1 }, {
+    color: "#334155", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle", fieldId: "divider_3"
+  });
+
+  /* ── 10. Available Plans ── */
+  const plansTitle = createComponent("label", null, { x: 0, y: 99, w: 30, h: 3 }, {
+    text: "Available Plans", preset: "h3", color: "#f1f5f9", fontWeight: "bold", icon: "star", fieldId: "plans_title"
+  });
+  const cardRepeater = createComponent("card-list-repeater", null, { x: 0, y: 102, w: W, h: 18 }, {
+    dataSourcePath: "@apiData.response.products",
+    cardTitle: "5G Premium",
+    cardBadge: "5G",
+    cardPrice: "89,000",
+    cardPriceUnit: "Won/Month",
+    cardDescription: "High-speed 5G data plan with unlimited streaming and premium content access.",
+    cardFacts: "Data: 210GB, Voice: Unlimited, SMS: Unlimited, Tethering: 30GB",
+    cardButtonText: "Select Plan",
+    accentColor: "#3b82f6",
+    cardWidth: 240,
+    fieldId: "plan_cards"
+  });
+
+  /* ── 11. Submit ── */
+  const submitBtn = createComponent("action-button", null, { x: 0, y: 121, w: W, h: 3 }, {
+    text: "Submit Application", actionType: "submit", icon: "check", colorPreset: "primary",
+    customBgColor: "#3b82f6", customTextColor: "#ffffff",
+    fieldId: "btn_submit"
   });
 
   state.components = [
-    root, titleLbl, subLbl, sectionProfile, lblProfile, sectionAccount, lblAccount,
-    inputName, inputPhone, factStatus, factPlan, factAccId, factCredit, factBalance,
-    lookupBtn, resetBtn
+    headerBox, titleLbl, statusBadge, subtitleLbl,
+    searchBox, lblSearch, inputName, inputPhone, comboPlan, radioType, checkboxServices, searchBtn, resetBtn,
+    infoBox, lblInfo, badgeActive, factPlan, factBalance, factAccId, factCredit,
+    extraBox, lblExtra, datePicker, factDueDate,
+    divider1, gridTitle, dataGrid,
+    divider2, accordion,
+    divider3, plansTitle, cardRepeater,
+    submitBtn
   ];
   for (const c of state.components) ensureComponentSchema(c);
 
@@ -316,9 +430,7 @@ function seedFieldValues() {
   for (const c of state.components) {
     const fid = c.props?.fieldId;
     if (!fid || fieldValues[fid] !== undefined) continue;
-    fieldValues[fid] = c.type === "address-picker"
-      ? { line1: "", line2: "", city: "", postal: "" }
-      : "";
+    fieldValues[fid] = "";
   }
 }
 

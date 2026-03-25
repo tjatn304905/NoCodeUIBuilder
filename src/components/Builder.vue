@@ -32,14 +32,20 @@
 
           <!-- ═══ DATA Tab (State + Data Navigator) ═══ -->
           <template v-else-if="leftTab === 'dataTab'">
-            <details open class="mb-3 group rounded-lg border border-slate-700 bg-slate-800/40">
-              <summary class="flex cursor-pointer list-none items-center justify-between px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 marker:content-none [&::-webkit-details-marker]:hidden">
-                <span><span class="mr-1 text-slate-500">▾</span> State Variables</span>
-                <button type="button" class="rounded border border-cyan-500/35 bg-cyan-500/15 px-2 py-1 text-[10px] font-medium text-cyan-200 hover:bg-cyan-500/25" @click.stop="addLogicVariable">+ Add</button>
-              </summary>
-              <div class="border-t border-slate-700 p-2 pt-0">
-                <div v-for="v in state.logic.variables" :key="v.id" class="mb-2 rounded-lg border border-slate-700 bg-slate-800/60 p-2.5">
-                  <div class="mb-1.5 flex gap-1">
+            <div class="mb-3 flex items-center justify-between">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">State Variables</p>
+              <button type="button" class="rounded border border-cyan-500/35 bg-cyan-500/15 px-2 py-1 text-[10px] font-medium text-cyan-200 hover:bg-cyan-500/25" @click.stop="addLogicVariable">+ Add</button>
+            </div>
+            <div v-for="v in state.logic.variables" :key="v.id" class="mb-2">
+              <details open class="group rounded-lg border border-slate-700 bg-slate-800/60 [&[open]>summary_.chevron]:rotate-90">
+                <summary class="flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5 marker:content-none [&::-webkit-details-marker]:hidden">
+                  <span class="chevron text-[10px] text-slate-500 transition-transform">▸</span>
+                  <span class="min-w-0 flex-1 truncate font-mono text-[11px] font-semibold text-slate-200">{{ v.name || 'unnamed' }}</span>
+                  <span class="shrink-0 rounded border border-slate-600 bg-slate-700/60 px-1.5 py-0.5 text-[9px] text-slate-400">{{ v.type }}</span>
+                  <button type="button" class="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] text-red-400 hover:bg-red-500/15 hover:text-red-300" title="Remove" @click.stop="removeLogicVariable(v.id)">✕</button>
+                </summary>
+                <div class="space-y-1.5 border-t border-slate-700 p-2">
+                  <div class="flex gap-1">
                     <input v-model="v.name" class="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[11px] text-slate-200" placeholder="Variable name" @change="updateLogicVariable(v.id, { name: v.name })" />
                     <select v-model="v.type" class="w-[72px] shrink-0 rounded border border-slate-600 bg-slate-900 px-1 py-1 text-[10px] text-slate-200" @change="updateLogicVariable(v.id, { type: v.type })">
                       <option value="string">String</option>
@@ -50,18 +56,15 @@
                     </select>
                   </div>
                   <textarea v-model="v.initialValue" rows="2" class="w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-300" placeholder='Initial value (e.g. [] or "text")' @change="updateLogicVariable(v.id, { initialValue: v.initialValue })" />
-                  <div class="mt-1.5 flex items-center justify-between">
-                    <span class="inline-flex items-center gap-1 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 font-mono text-[9px] text-cyan-300">@state.{{ v.name }}</span>
-                    <button type="button" class="text-[10px] text-red-400 hover:text-red-300 hover:underline" @click="removeLogicVariable(v.id)">Remove</button>
-                  </div>
+                  <span class="inline-flex items-center gap-1 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 font-mono text-[9px] text-cyan-300">@state.{{ v.name }}</span>
                 </div>
-                <p v-if="!state.logic.variables.length" class="rounded border border-dashed border-slate-700 p-3 text-center text-xs text-slate-500">No variables. Click + Add.</p>
-              </div>
-            </details>
+              </details>
+            </div>
+            <p v-if="!state.logic.variables.length" class="mb-3 rounded border border-dashed border-slate-700 p-3 text-center text-xs text-slate-500">No variables. Click + Add.</p>
 
-            <details open class="mb-2 rounded-lg border border-slate-700 bg-slate-800/40">
-              <summary class="cursor-pointer list-none px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 marker:content-none [&::-webkit-details-marker]:hidden">
-                <span class="mr-1 text-slate-500">▾</span> Data Navigator
+            <details open class="mb-2 rounded-lg border border-slate-700 bg-slate-800/40 [&[open]>summary_.chevron]:rotate-90">
+              <summary class="flex cursor-pointer list-none items-center gap-1.5 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 marker:content-none [&::-webkit-details-marker]:hidden">
+                <span class="chevron text-[10px] text-slate-500 transition-transform">▸</span> Data Navigator
               </summary>
               <div class="border-t border-slate-700 p-2">
                 <p v-if="!visibleDataPathTreeItems.length" class="text-xs text-slate-500">No paths yet.</p>
@@ -83,32 +86,53 @@
               <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Order Events</p>
               <button type="button" class="rounded border border-violet-500/35 bg-violet-500/15 px-2 py-1 text-[10px] font-medium text-violet-200 hover:bg-violet-500/25" @click="addOrderEvent">+ Add</button>
             </div>
-            <div v-for="oe in state.logic.orderEvents" :key="oe.id" class="mb-3 rounded-lg border border-slate-700 bg-slate-800/60 p-2.5">
-              <div class="mb-1.5 flex gap-1">
-                <input v-model="oe.eventCode" class="w-[90px] shrink-0 rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-1 font-mono text-[10px] font-semibold text-violet-200" placeholder="EVENT_CODE" />
-                <input v-model="oe.name" class="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 text-[11px] text-slate-200" placeholder="Event name" />
-              </div>
-              <p class="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">Request DTO (JSON, predefined shape)</p>
-              <textarea v-model="oe.requestDtoJson" rows="4" class="mb-2 w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-300" placeholder='{ "field": "" }' />
 
-              <p class="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">Field mapping → DTO</p>
-              <p class="mb-1 text-[9px] leading-snug text-slate-500">Comma-separated. Values: <span class="font-mono text-slate-400">$fieldId.value</span>, <span class="font-mono text-slate-400">@state.var</span> / <span class="font-mono text-slate-400">$state.var</span> (inputs, selections, prior API state).</p>
-              <textarea v-model="oe.requestMapping" rows="3" class="mb-2 w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-300" placeholder='customer_name:$customer_name.value, token:$state.sessionKey' />
+            <div v-for="oe in state.logic.orderEvents" :key="oe.id" class="mb-2">
+              <details open class="group rounded-lg border border-slate-700 bg-slate-800/60 [&[open]>summary_.chevron]:rotate-90">
+                <summary class="flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5 marker:content-none [&::-webkit-details-marker]:hidden">
+                  <span class="chevron text-[10px] text-slate-500 transition-transform">▸</span>
+                  <input v-model="oe.name" class="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 text-[11px] font-semibold text-slate-200 outline-none hover:border-slate-600 focus:border-slate-500 focus:bg-slate-900" placeholder="Event Name" @click.stop />
+                  <input v-model="oe.eventCode" class="w-[72px] shrink-0 rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-center font-mono text-[9px] font-semibold text-violet-300 outline-none focus:border-violet-400" placeholder="CODE" @click.stop />
+                  <button type="button" class="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] text-red-400 hover:bg-red-500/15 hover:text-red-300" title="Remove" @click.stop="removeOrderEvent(oe.id)">✕</button>
+                </summary>
+                <div class="space-y-2.5 border-t border-slate-700 p-2">
+                  <!-- Request DTO JSON -->
+                  <div>
+                    <div class="mb-1 flex items-center justify-between">
+                      <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Request DTO (JSON)</p>
+                      <span class="rounded bg-slate-700/60 px-1 py-0.5 text-[9px] text-slate-500">predefined</span>
+                    </div>
+                    <textarea v-model="oe.requestDtoJson" rows="4" class="w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] leading-relaxed text-slate-300 outline-none focus:border-blue-500" placeholder='{ "field": "" }' />
+                  </div>
 
-              <p class="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">Response → state (preview)</p>
-              <div class="mb-1.5 flex gap-1">
-                <input v-model="oe.onSuccessPath" class="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-200" placeholder="res path (e.g. data.list)" />
-                <span class="flex shrink-0 items-center text-[10px] text-slate-500">→</span>
-                <select v-model="oe.onSuccessVariable" class="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-200">
-                  <option value="">— select variable —</option>
-                  <option v-for="sv in state.logic.variables" :key="sv.id" :value="sv.name">{{ sv.name }}</option>
-                </select>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="rounded-full border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 font-mono text-[9px] text-violet-300">{{ oe.id }}</span>
-                <button type="button" class="text-[10px] text-red-400 hover:text-red-300 hover:underline" @click="removeOrderEvent(oe.id)">Remove</button>
-              </div>
+                  <!-- Field Mapping -->
+                  <div>
+                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Field Mapping → DTO</p>
+                    <p class="mb-1 text-[9px] leading-snug text-slate-500">
+                      <span class="font-mono text-blue-400">$fieldId.value</span>
+                      <span class="text-slate-600"> · </span>
+                      <span class="font-mono text-cyan-400">@state.var</span>
+                    </p>
+                    <textarea v-model="oe.requestMapping" rows="3" class="w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] leading-relaxed text-slate-300 outline-none focus:border-blue-500" placeholder="customer_name:$customer_name.value" />
+                  </div>
+
+                  <!-- Response Mapping -->
+                  <div>
+                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Response → State</p>
+                    <p class="mb-1 text-[9px] leading-snug text-slate-500">응답 경로의 값을 State Variable에 저장</p>
+                    <div class="flex items-center gap-1">
+                      <input v-model="oe.onSuccessPath" class="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500" placeholder="data.list" />
+                      <span class="shrink-0 text-[10px] text-slate-500">→</span>
+                      <select v-model="oe.onSuccessVariable" class="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-200 outline-none focus:border-blue-500">
+                        <option value="">— variable —</option>
+                        <option v-for="sv in state.logic.variables" :key="sv.id" :value="sv.name">{{ sv.name }}</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>
+
             <p v-if="!state.logic.orderEvents.length" class="rounded border border-dashed border-slate-700 p-4 text-center text-xs text-slate-500">No Order Events defined.</p>
           </template>
         </div>
@@ -205,7 +229,7 @@
                 </div>
 
                 <!-- onChange (input / combo) -->
-                <div v-if="['text-input','combo-box','radio-group','address-picker'].includes(selectedComponent.type)">
+                <div v-if="['text-input','combo-box','radio-group','checkbox-group','date-picker'].includes(selectedComponent.type)">
                   <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onChange</label>
                   <EventActionEditor :actions="currentEvents.onChange" :order-events="state.logic.orderEvents" :variables="state.logic.variables" :binding-pills="bindingPills" @update="(a) => setEventActions('onChange', a)" />
                 </div>
@@ -244,8 +268,8 @@
                 <FieldText label="Input Mask" :model-value="selectedComponent.props.mask" @update:model-value="(v) => p('mask', v)" />
               </template>
 
-              <!-- Combo / Radio -->
-              <template v-if="selectedComponent.type === 'combo-box' || selectedComponent.type === 'radio-group'">
+              <!-- Combo / Radio / Checkbox -->
+              <template v-if="selectedComponent.type === 'combo-box' || selectedComponent.type === 'radio-group' || selectedComponent.type === 'checkbox-group'">
                 <FieldText label="Options (comma-separated)" :model-value="selectedComponent.props.options" @update:model-value="(v) => p('options', v)" />
               </template>
 
@@ -344,14 +368,14 @@
                 <FieldText label="Facts (Key: Val, ...)" :model-value="selectedComponent.props.cardFacts" @update:model-value="(v) => p('cardFacts', v)" />
                 <FieldText label="Button Text" :model-value="selectedComponent.props.cardButtonText" @update:model-value="(v) => p('cardButtonText', v)" />
                 <FieldColor label="Accent Color" :model-value="selectedComponent.props.accentColor" @update:model-value="(v) => p('accentColor', v)" />
+                <FieldNumber label="Card Width (px)" :model-value="selectedComponent.props.cardWidth ?? 240" @update:model-value="(v) => p('cardWidth', v)" :min="100" :max="600" />
+                <FieldNumber label="Card Height (px, 0=auto)" :model-value="selectedComponent.props.cardHeight ?? 0" @update:model-value="(v) => p('cardHeight', v)" :min="0" :max="800" />
               </template>
 
-              <!-- Address Picker -->
-              <template v-if="selectedComponent.type === 'address-picker'">
-                <FieldText label="Line 1 placeholder" :model-value="selectedComponent.props.line1Placeholder" @update:model-value="(v) => p('line1Placeholder', v)" />
-                <FieldText label="Line 2 placeholder" :model-value="selectedComponent.props.line2Placeholder" @update:model-value="(v) => p('line2Placeholder', v)" />
-                <FieldText label="City placeholder" :model-value="selectedComponent.props.cityPlaceholder" @update:model-value="(v) => p('cityPlaceholder', v)" />
-                <FieldText label="Postal placeholder" :model-value="selectedComponent.props.postalPlaceholder" @update:model-value="(v) => p('postalPlaceholder', v)" />
+              <!-- Date Picker -->
+              <template v-if="selectedComponent.type === 'date-picker'">
+                <FieldText label="Placeholder" :model-value="selectedComponent.props.placeholder" @update:model-value="(v) => p('placeholder', v)" />
+                <FieldText label="Date Format" :model-value="selectedComponent.props.dateFormat" @update:model-value="(v) => p('dateFormat', v)" />
               </template>
             </div>
           </div>
@@ -968,8 +992,8 @@ const FieldCheck = {
 .canvas-grid {
   background-color: #111827;
   background-image:
-    linear-gradient(to right, rgba(100, 116, 139, 0.34) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(100, 116, 139, 0.34) 1px, transparent 1px);
-  background-size: 20px 20px;
+    linear-gradient(to right, rgba(100, 116, 139, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100, 116, 139, 0.15) 1px, transparent 1px);
+  background-size: 10px 10px;
 }
 </style>

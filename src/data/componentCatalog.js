@@ -90,15 +90,16 @@ export const COMPONENT_CATALOG = [
         defaultProps: { options: "Yes, No" }
       },
       {
-        type: "address-picker",
-        label: "Address Picker",
-        defaultSize: { w: 24, h: 8 },
-        defaultProps: {
-          line1Placeholder: "Street, building",
-          line2Placeholder: "Apt, floor (optional)",
-          cityPlaceholder: "City",
-          postalPlaceholder: "Postal code"
-        }
+        type: "checkbox-group",
+        label: "Checkbox Group",
+        defaultSize: { w: 24, h: 4 },
+        defaultProps: { options: "Option A, Option B, Option C" }
+      },
+      {
+        type: "date-picker",
+        label: "Date Picker",
+        defaultSize: { w: 16, h: 4 },
+        defaultProps: { placeholder: "YYYY-MM-DD", dateFormat: "YYYY-MM-DD" }
       }
     ]
   },
@@ -170,7 +171,9 @@ export const COMPONENT_CATALOG = [
           cardDescription: "High-speed 5G data plan with unlimited streaming and premium content access.",
           cardFacts: "Data: 210GB, Voice: Unlimited, SMS: Unlimited, Tethering: 30GB",
           cardButtonText: "Select Plan",
-          accentColor: "#3b82f6"
+          accentColor: "#3b82f6",
+          cardWidth: 240,
+          cardHeight: 0
         }
       }
     ]
