@@ -1,5 +1,5 @@
 import { reactive, ref, computed } from "vue";
-import { COMPONENT_CATALOG, COLS, CELL_SIZE } from "../data/componentCatalog";
+import { COMPONENT_CATALOG, COLS, CELL_SIZE, DEFAULT_CONTAINER_BG } from "../data/componentCatalog";
 
 let uid = 1;
 
@@ -53,43 +53,75 @@ function createComponent(type, parentId, layout, extraProps = {}) {
 }
 
 function init() {
-  const superSection = createComponent("super-section", null, { x: 0, y: 0, w: 64, h: 28 }, {
-    title: "Customer Management",
-    subtitle: "Search and manage telecom customer accounts",
-    icon: "user",
-    bgColor: "#ffffff"
+  const root = createComponent("container", null, { x: 0, y: 0, w: 64, h: 28 }, {
+    showBorder: true,
+    showBackground: true,
+    padding: 12,
+    bgColor: DEFAULT_CONTAINER_BG
   });
 
-  const sectionProfile = createComponent("section-box", superSection.id, { x: 0, y: 0, w: 30, h: 20 }, {
-    title: "Customer Profile",
-    icon: "user"
+  const titleLbl = createComponent("label", root.id, { x: 0, y: 0, w: 50, h: 2 }, {
+    text: "Customer Management",
+    preset: "h2",
+    color: "#f1f5f9",
+    fontWeight: "bold",
+    fieldId: "title_main"
   });
 
-  const sectionAccount = createComponent("section-box", superSection.id, { x: 31, y: 0, w: 30, h: 20 }, {
-    title: "Account Details",
-    icon: "chart"
+  const subLbl = createComponent("label", root.id, { x: 0, y: 2, w: 58, h: 2 }, {
+    text: "Search and manage telecom customer accounts",
+    preset: "small",
+    color: "#94a3b8",
+    fontWeight: "normal",
+    fieldId: "subtitle_main"
   });
 
-  const inputName = createComponent("text-input", sectionProfile.id, { x: 0, y: 0, w: 26, h: 4 }, {
+  const sectionProfile = createComponent("container", root.id, { x: 0, y: 5, w: 30, h: 20 }, {
+    showBorder: true,
+    showBackground: true,
+    padding: 10,
+    bgColor: DEFAULT_CONTAINER_BG
+  });
+
+  const lblProfile = createComponent("label", sectionProfile.id, { x: 0, y: 0, w: 26, h: 2 }, {
+    text: "Customer Profile",
+    preset: "h3",
+    fieldId: "sec_profile_title"
+  });
+
+  const sectionAccount = createComponent("container", root.id, { x: 31, y: 5, w: 30, h: 20 }, {
+    showBorder: true,
+    showBackground: true,
+    padding: 10,
+    bgColor: DEFAULT_CONTAINER_BG
+  });
+
+  const lblAccount = createComponent("label", sectionAccount.id, { x: 0, y: 0, w: 26, h: 2 }, {
+    text: "Account Details",
+    preset: "h3",
+    fieldId: "sec_account_title"
+  });
+
+  const inputName = createComponent("text-input", sectionProfile.id, { x: 0, y: 3, w: 26, h: 4 }, {
     label: "Customer Name", fieldId: "customer_name", placeholder: "Enter name"
   });
-  const inputPhone = createComponent("text-input", sectionProfile.id, { x: 0, y: 5, w: 26, h: 4 }, {
+  const inputPhone = createComponent("text-input", sectionProfile.id, { x: 0, y: 8, w: 26, h: 4 }, {
     label: "Phone Number", fieldId: "customer_phone", mask: "000-0000-0000", inputType: "tel"
   });
-  const factStatus = createComponent("data-fact", sectionProfile.id, { x: 0, y: 10, w: 12, h: 4 }, {
+  const factStatus = createComponent("data-fact", sectionProfile.id, { x: 0, y: 13, w: 12, h: 4 }, {
     label: "Status", fieldId: "status", dataPath: "@apiData.user.status"
   });
-  const factPlan = createComponent("data-fact", sectionProfile.id, { x: 13, y: 10, w: 13, h: 4 }, {
+  const factPlan = createComponent("data-fact", sectionProfile.id, { x: 13, y: 13, w: 13, h: 4 }, {
     label: "Plan", fieldId: "plan", dataPath: "@apiData.user.plan"
   });
 
-  const factAccId = createComponent("data-fact", sectionAccount.id, { x: 0, y: 0, w: 13, h: 4 }, {
+  const factAccId = createComponent("data-fact", sectionAccount.id, { x: 0, y: 3, w: 13, h: 4 }, {
     label: "Account ID", fieldId: "acc_id", dataPath: "@apiData.account.id"
   });
-  const factCredit = createComponent("data-fact", sectionAccount.id, { x: 14, y: 0, w: 12, h: 4 }, {
+  const factCredit = createComponent("data-fact", sectionAccount.id, { x: 14, y: 3, w: 12, h: 4 }, {
     label: "Credit Rating", fieldId: "credit", dataPath: "@apiData.account.credit"
   });
-  const factBalance = createComponent("data-fact", sectionAccount.id, { x: 0, y: 5, w: 13, h: 4 }, {
+  const factBalance = createComponent("data-fact", sectionAccount.id, { x: 0, y: 8, w: 13, h: 4 }, {
     label: "Balance", fieldId: "balance", dataPath: "@apiData.user.balance", value: "89,000"
   });
 
@@ -102,10 +134,22 @@ function init() {
   });
 
   state.components = [
-    superSection, sectionProfile, sectionAccount,
-    inputName, inputPhone, factStatus, factPlan,
-    factAccId, factCredit, factBalance,
-    lookupBtn, resetBtn
+    root,
+    titleLbl,
+    subLbl,
+    sectionProfile,
+    lblProfile,
+    sectionAccount,
+    lblAccount,
+    inputName,
+    inputPhone,
+    factStatus,
+    factPlan,
+    factAccId,
+    factCredit,
+    factBalance,
+    lookupBtn,
+    resetBtn
   ];
 }
 

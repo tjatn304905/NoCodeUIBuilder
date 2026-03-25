@@ -3,10 +3,6 @@
     <div class="grid h-full w-full min-w-0 grid-cols-[minmax(240px,280px)_minmax(0,1fr)_minmax(260px,320px)] gap-3">
       <!-- Workflow Left Panel -->
       <aside class="flex flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
-        <div class="border-b border-slate-700 px-4 py-3">
-          <h2 class="text-sm font-semibold text-slate-100">Workflow Panel</h2>
-          <p class="mt-1 text-xs text-slate-400">Library / Nodes / Data</p>
-        </div>
         <div class="grid grid-cols-3 gap-1 border-b border-slate-700 p-2">
           <button class="rounded-md px-2 py-1.5 text-xs transition-colors" :class="leftTab === 'library' ? 'bg-slate-700 text-slate-100' : 'text-slate-300 hover:bg-slate-800'" @click="leftTab = 'library'">Library</button>
           <button class="rounded-md px-2 py-1.5 text-xs transition-colors" :class="leftTab === 'nodes' ? 'bg-slate-700 text-slate-100' : 'text-slate-300 hover:bg-slate-800'" @click="leftTab = 'nodes'">Nodes</button>
@@ -94,7 +90,7 @@
           </div>
         </header>
 
-        <div ref="canvasStageRef" class="relative flex-1 overflow-auto bg-slate-950 p-4" @click="deselectAll()">
+        <div class="relative flex-1 overflow-auto bg-slate-950 p-4" @click="deselectAll()">
           <div class="mx-auto" :style="{ width: `${CANVAS_WIDTH}px` }">
             <div
               class="relative rounded-xl border border-slate-700 bg-slate-900"
@@ -112,55 +108,6 @@
                 :rows="canvasRows"
                 @open-data-preview="onOpenDataPreview"
               />
-            </div>
-          </div>
-
-          <div class="preview-panel absolute inset-x-4 bottom-4 z-20 overflow-hidden rounded-lg border border-slate-600 bg-slate-900/95 shadow-2xl transition-transform duration-300 ease-out" :class="isDataPreviewOpen ? 'translate-y-0' : 'translate-y-[110%]'" :style="{ height: `${dataPreviewHeight}px` }" @click.stop>
-            <div class="flex h-8 items-center justify-center border-b border-slate-700" @pointerdown.prevent="onResizePreviewStart">
-              <div class="h-1.5 w-14 rounded-full bg-slate-600" />
-            </div>
-            <div class="flex items-center justify-between border-b border-slate-700 px-3 py-2">
-              <div class="min-w-0">
-                <p class="text-[11px] uppercase tracking-wide text-slate-400">Data Preview</p>
-                <p class="truncate font-mono text-xs text-cyan-300">{{ activeDataPath || "-" }}</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="flex items-center rounded border border-slate-600 bg-slate-800 p-0.5">
-                  <button
-                    class="rounded px-2 py-0.5 text-[11px] transition-colors"
-                    :class="dataPreviewViewMode === 'json' ? 'bg-slate-700 text-slate-100' : 'text-slate-300 hover:bg-slate-700'"
-                    @click="dataPreviewViewMode = 'json'"
-                  >
-                    JSON
-                  </button>
-                  <button
-                    class="rounded px-2 py-0.5 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                    :class="dataPreviewViewMode === 'table' ? 'bg-slate-700 text-slate-100' : 'text-slate-300 hover:bg-slate-700'"
-                    :disabled="!canShowTable"
-                    @click="dataPreviewViewMode = 'table'"
-                  >
-                    Table
-                  </button>
-                </div>
-                <button class="rounded border border-slate-600 px-2 py-0.5 text-xs text-slate-200 hover:bg-slate-800" @click="closeDataPreview">X</button>
-              </div>
-            </div>
-            <div class="h-[calc(100%-73px)] overflow-auto">
-              <table v-if="activePreviewMode === 'table'" class="w-full min-w-full border-collapse text-xs">
-                <thead class="sticky top-0 bg-slate-800 text-slate-300">
-                  <tr>
-                    <th v-for="col in previewColumns" :key="col" class="border-b border-r border-slate-700 px-2 py-1.5 text-left font-semibold">{{ col }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, ri) in previewRows" :key="ri" class="odd:bg-slate-900 even:bg-slate-800/70">
-                    <td v-for="col in previewColumns" :key="`${ri}-${col}`" class="max-w-[260px] border-b border-r border-slate-800 px-2 py-1 align-top text-slate-200">
-                      {{ formatCellValue(row[col]) }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <pre v-else class="h-full overflow-auto p-3 text-xs text-emerald-300">{{ previewJson }}</pre>
             </div>
           </div>
         </div>
@@ -189,7 +136,7 @@
             <div class="space-y-3">
               <!-- Common -->
               <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
-              <FieldText label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
+              <FieldText v-if="selectedComponent.type !== 'label'" label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
               <FieldSelect label="H-Align" :model-value="selectedComponent.props.alignment" :options="['left','center','right']" @update:model-value="(v) => p('alignment', v)" />
               <FieldSelect label="V-Align" :model-value="selectedComponent.props.valign" :options="['top','middle','bottom']" @update:model-value="(v) => p('valign', v)" />
 
@@ -203,28 +150,32 @@
                 </div>
               </div>
 
-              <!-- Super Section / Section Box -->
-              <template v-if="selectedComponent.type === 'section-box' || selectedComponent.type === 'super-section'">
-                <FieldText label="Section Title" :model-value="selectedComponent.props.title" @update:model-value="(v) => p('title', v)" />
-                <FieldText
-                  v-if="selectedComponent.type === 'super-section'"
-                  label="Subtitle"
-                  :model-value="selectedComponent.props.subtitle"
-                  @update:model-value="(v) => p('subtitle', v)"
-                />
-                <FieldSelect label="Icon" :model-value="selectedComponent.props.icon" :options="['folder','user','settings','star','list','chart']" @update:model-value="(v) => p('icon', v)" />
+              <!-- Container (Section) -->
+              <template v-if="selectedComponent.type === 'container'">
+                <FieldCheck label="Show border" :model-value="selectedComponent.props.showBorder" @update:model-value="(v) => p('showBorder', v)" />
+                <FieldCheck label="Show background" :model-value="selectedComponent.props.showBackground" @update:model-value="(v) => p('showBackground', v)" />
+                <FieldNumber label="Padding (px)" :model-value="selectedComponent.props.padding" @update:model-value="(v) => p('padding', v)" />
                 <FieldColor
-                  v-if="selectedComponent.type === 'super-section'"
-                  label="Background Color"
+                  v-if="selectedComponent.props.showBackground !== false"
+                  label="Background color"
                   :model-value="selectedComponent.props.bgColor"
                   @update:model-value="(v) => p('bgColor', v)"
                 />
-                <FieldColor
-                  v-if="selectedComponent.type === 'section-box'"
-                  label="Background Color"
-                  :model-value="selectedComponent.props.bgColor"
-                  @update:model-value="(v) => p('bgColor', v)"
+              </template>
+
+              <!-- Label (universal text) -->
+              <template v-if="selectedComponent.type === 'label'">
+                <FieldText label="Text" :model-value="selectedComponent.props.text" @update:model-value="(v) => p('text', v)" />
+                <FieldSelect
+                  label="Icon"
+                  :model-value="selectedComponent.props.icon"
+                  :options="['none','folder','user','settings','star','list','chart']"
+                  @update:model-value="(v) => p('icon', v)"
                 />
+                <FieldSelect label="Preset" :model-value="selectedComponent.props.preset" :options="['h1','h2','h3','body','small']" @update:model-value="(v) => p('preset', v)" />
+                <FieldNumber label="Custom font size (0 = preset)" :model-value="selectedComponent.props.customFontSize" @update:model-value="(v) => p('customFontSize', v)" />
+                <FieldColor label="Color" :model-value="selectedComponent.props.color" @update:model-value="(v) => p('color', v)" />
+                <FieldSelect label="Font weight" :model-value="selectedComponent.props.fontWeight" :options="['normal','bold','extrabold']" @update:model-value="(v) => p('fontWeight', v)" />
               </template>
 
               <!-- Accordion -->
@@ -292,20 +243,20 @@
                   <FieldColor label="Background Color" :model-value="selectedComponent.props.customBgColor" @update:model-value="(v) => p('customBgColor', v)" />
                   <FieldColor label="Text Color" :model-value="selectedComponent.props.customTextColor" @update:model-value="(v) => p('customTextColor', v)" />
                 </template>
-                <div class="rounded-md border border-slate-200 p-2">
-                  <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">Parameter Mapping</p>
+                <div class="rounded-md border border-slate-700 bg-slate-800/40 p-2">
+                  <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Parameter Mapping</p>
                   <FieldText label="Params (key:$fieldId.value, ...)" :model-value="selectedComponent.props.params" @update:model-value="(v) => p('params', v)" />
                   <div v-if="parsedParams.length" class="mt-2 space-y-1">
-                    <div v-for="pm in parsedParams" :key="pm.key" class="flex items-center gap-1 rounded bg-slate-50 px-2 py-1 text-[10px]">
-                      <span class="font-mono font-semibold text-blue-600">{{ pm.key }}</span>
-                      <span class="text-slate-400">&rarr;</span>
-                      <span class="font-mono text-slate-600">{{ pm.value }}</span>
+                    <div v-for="pm in parsedParams" :key="pm.key" class="flex items-center gap-1 rounded border border-slate-600/80 bg-slate-900/60 px-2 py-1 text-[10px]">
+                      <span class="font-mono font-semibold text-cyan-300">{{ pm.key }}</span>
+                      <span class="text-slate-500">&rarr;</span>
+                      <span class="font-mono text-slate-300">{{ pm.value }}</span>
                     </div>
                   </div>
-                  <div v-if="availableFieldIds.length" class="mt-2 rounded bg-blue-50 p-1.5">
-                    <p class="mb-1 text-[9px] font-medium text-blue-500">Available Field IDs:</p>
+                  <div v-if="availableFieldIds.length" class="mt-2 rounded border border-blue-500/25 bg-blue-500/10 p-1.5">
+                    <p class="mb-1 text-[9px] font-medium text-blue-300/90">Available Field IDs:</p>
                     <div class="flex flex-wrap gap-1">
-                      <span v-for="fid in availableFieldIds" :key="fid" class="rounded bg-white px-1.5 py-0.5 font-mono text-[9px] text-blue-700 shadow-sm">
+                      <span v-for="fid in availableFieldIds" :key="fid" class="rounded border border-slate-600 bg-slate-900 px-1.5 py-0.5 font-mono text-[9px] text-cyan-200/90">
                         ${{ fid }}.value
                       </span>
                     </div>
@@ -316,23 +267,23 @@
               <!-- Data Grid -->
               <template v-if="selectedComponent.type === 'data-grid'">
                 <FieldText label="Data Source Path" :model-value="selectedComponent.props.dataSourcePath" @update:model-value="(v) => p('dataSourcePath', v)" />
-                <div class="rounded-md border border-slate-200 p-2">
-                  <div class="mb-2 flex items-center justify-between">
-                    <p class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Column Definitions</p>
-                    <button class="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-100" @click="addGridColumn">+ Add</button>
+                <div class="rounded-md border border-slate-700 bg-slate-800/40 p-2">
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <p class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Column Definitions</p>
+                    <button type="button" class="shrink-0 rounded border border-cyan-500/35 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-medium text-cyan-200 hover:bg-cyan-500/25" @click="addGridColumn">+ Add</button>
                   </div>
                   <div class="space-y-1.5">
                     <div v-for="(col, ci) in gridColumns" :key="ci" class="flex items-center gap-1">
-                      <input :value="col.header" placeholder="Header" class="h-7 w-1/2 rounded border border-slate-300 px-1.5 text-[11px] focus:border-blue-400 focus:outline-none" @input="(e) => updateGridColumn(ci, 'header', e.target.value)" />
-                      <input :value="col.field" placeholder="field" class="h-7 w-1/2 rounded border border-slate-300 px-1.5 font-mono text-[11px] focus:border-blue-400 focus:outline-none" @input="(e) => updateGridColumn(ci, 'field', e.target.value)" />
-                      <button class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-red-400 hover:bg-red-50 hover:text-red-600" @click="removeGridColumn(ci)">✕</button>
+                      <input :value="col.header" placeholder="Header" class="h-7 w-1/2 rounded border border-slate-600 bg-slate-900 px-1.5 text-[11px] text-slate-200 placeholder:text-slate-500 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30" @input="(e) => updateGridColumn(ci, 'header', e.target.value)" />
+                      <input :value="col.field" placeholder="field" class="h-7 w-1/2 rounded border border-slate-600 bg-slate-900 px-1.5 font-mono text-[11px] text-slate-200 placeholder:text-slate-500 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30" @input="(e) => updateGridColumn(ci, 'field', e.target.value)" />
+                      <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-transparent text-red-400 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300" title="Remove column" @click="removeGridColumn(ci)">✕</button>
                     </div>
-                    <p v-if="!gridColumns.length" class="text-center text-[10px] text-slate-400">No columns defined</p>
+                    <p v-if="!gridColumns.length" class="text-center text-[10px] text-slate-500">No columns defined</p>
                   </div>
                 </div>
                 <FieldSelect label="Selection Mode" :model-value="selectedComponent.props.selectionMode" :options="['none','single','multiple']" @update:model-value="(v) => p('selectionMode', v)" />
-                <div class="rounded-md border border-slate-200 p-2">
-                  <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">Feature Toggles</p>
+                <div class="rounded-md border border-slate-700 bg-slate-800/40 p-2">
+                  <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Feature Toggles</p>
                   <div class="space-y-2">
                     <FieldCheck label="Read Only" :model-value="selectedComponent.props.isReadOnly" @update:model-value="(v) => p('isReadOnly', v)" />
                     <FieldCheck label="Editable" :model-value="selectedComponent.props.isEditable" @update:model-value="(v) => p('isEditable', v)" />
@@ -340,8 +291,8 @@
                     <FieldCheck label="Allow Delete Row" :model-value="selectedComponent.props.allowDeleteRow" @update:model-value="(v) => p('allowDeleteRow', v)" />
                   </div>
                 </div>
-                <div class="rounded-md border border-slate-200 p-2">
-                  <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">Pagination</p>
+                <div class="rounded-md border border-slate-700 bg-slate-800/40 p-2">
+                  <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Pagination</p>
                   <div class="space-y-2">
                     <FieldCheck label="Enable Pagination" :model-value="selectedComponent.props.pagination" @update:model-value="(v) => p('pagination', v)" />
                     <FieldNumber label="Page Size" :model-value="selectedComponent.props.pageSize" @update:model-value="(v) => p('pageSize', v)" />
@@ -374,6 +325,57 @@
           </div>
         </div>
       </aside>
+    </div>
+
+    <!-- Data Preview Modal -->
+    <div v-if="isDataPreviewOpen" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4" @click.self="closeDataPreview">
+      <div class="w-full max-w-4xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl" @click.stop>
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 px-4 py-3">
+          <div class="min-w-0 flex-1">
+            <h3 class="text-sm font-semibold text-slate-100">Data Preview</h3>
+            <p class="mt-0.5 truncate font-mono text-xs text-cyan-300/90">{{ activeDataPath || "—" }}</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <div class="flex items-center rounded border border-slate-600 bg-slate-800 p-0.5">
+              <button
+                type="button"
+                class="rounded px-2 py-0.5 text-[11px] transition-colors"
+                :class="dataPreviewViewMode === 'json' ? 'bg-slate-700 text-slate-100' : 'text-slate-300 hover:bg-slate-700'"
+                @click="dataPreviewViewMode = 'json'"
+              >
+                JSON
+              </button>
+              <button
+                type="button"
+                class="rounded px-2 py-0.5 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                :class="dataPreviewViewMode === 'table' ? 'bg-slate-700 text-slate-100' : 'text-slate-300 hover:bg-slate-700'"
+                :disabled="!canShowTable"
+                @click="dataPreviewViewMode = 'table'"
+              >
+                Table
+              </button>
+            </div>
+            <button type="button" class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800" @click="closeDataPreview">Close</button>
+          </div>
+        </div>
+        <div class="max-h-[70vh] overflow-auto">
+          <table v-if="activePreviewMode === 'table'" class="w-full min-w-full border-collapse text-xs">
+            <thead class="sticky top-0 z-[1] bg-slate-800 text-slate-300">
+              <tr>
+                <th v-for="col in previewColumns" :key="col" class="border-b border-r border-slate-700 px-2 py-1.5 text-left font-semibold">{{ col }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, ri) in previewRows" :key="ri" class="odd:bg-slate-900 even:bg-slate-800/70">
+                <td v-for="col in previewColumns" :key="`${ri}-${col}`" class="max-w-[260px] border-b border-r border-slate-800 px-2 py-1 align-top text-slate-200">
+                  {{ formatCellValue(row[col]) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <pre v-else class="p-4 text-xs text-emerald-300">{{ previewJson }}</pre>
+        </div>
+      </div>
     </div>
 
     <!-- JSON Export Modal -->
@@ -412,9 +414,7 @@ const {
 
 const showExport = ref(false);
 const leftTab = ref("library");
-const canvasStageRef = ref(null);
 const isDataPreviewOpen = ref(false);
-const dataPreviewHeight = ref(260);
 const activeDataPath = ref("");
 const dataPreviewViewMode = ref("json");
 const expandedDataPaths = ref(new Set(["apiData"]));
@@ -645,7 +645,6 @@ function formatCellValue(value) {
 function onOpenDataPreview(path) {
   activeDataPath.value = path || "";
   isDataPreviewOpen.value = true;
-  if (dataPreviewHeight.value < 180) dataPreviewHeight.value = 180;
   dataPreviewViewMode.value = "json";
 
   const clean = normalizePath(path);
@@ -660,26 +659,6 @@ function onOpenDataPreview(path) {
 
 function closeDataPreview() {
   isDataPreviewOpen.value = false;
-}
-
-function onResizePreviewStart(event) {
-  if (!canvasStageRef.value) return;
-  const stageRect = canvasStageRef.value.getBoundingClientRect();
-  const startY = event.clientY;
-  const startHeight = dataPreviewHeight.value;
-  const minHeight = 160;
-  const maxHeight = Math.max(240, Math.floor(stageRect.height * 0.8));
-
-  function onMove(e) {
-    const next = startHeight + (startY - e.clientY);
-    dataPreviewHeight.value = Math.max(minHeight, Math.min(maxHeight, next));
-  }
-  function onUp() {
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-  }
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onUp);
 }
 
 const panelOptions = computed(() => {

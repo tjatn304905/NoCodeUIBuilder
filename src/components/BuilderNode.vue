@@ -23,7 +23,7 @@
         <button
           v-if="dataPathForPreview"
           class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-100 shadow hover:bg-slate-700"
-          title="Preview data"
+          :title="dataPathForPreview"
           @pointerdown.stop
           @click.stop="$emit('open-data-preview', dataPathForPreview)"
         >
@@ -32,6 +32,16 @@
         <span class="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm">
           {{ component.type }}
         </span>
+        <span
+          v-if="devMaskTag"
+          class="rounded border border-purple-500/50 bg-purple-500/25 px-1.5 py-0.5 text-[9px] font-semibold text-purple-100 shadow-sm"
+          title="Input has mask"
+        >MASK</span>
+        <span
+          v-if="devParamsTag"
+          class="rounded border border-white/25 bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold text-slate-100 shadow-sm"
+          title="Button params mapping"
+        >P</span>
         <button
           class="flex h-5 w-5 items-center justify-center rounded bg-red-500 text-[10px] text-white shadow hover:bg-red-600"
           title="Delete component"
@@ -145,6 +155,13 @@ const dataPathForPreview = computed(() => {
   return p.dataSourcePath || p.dataPath || "";
 });
 
+const devMaskTag = computed(
+  () => props.component.type === "text-input" && Boolean(props.component.props?.mask)
+);
+const devParamsTag = computed(
+  () => props.component.type === "action-button" && Boolean(props.component.props?.params)
+);
+
 const layout = computed(() => {
   const l = props.component.layout;
   const w = Math.min(props.cols, Math.max(1, l.w));
@@ -166,9 +183,9 @@ const nestedCols = computed(() => {
 
 const nestedRows = computed(() => {
   const type = props.component.type;
-  if (type === 'super-section') return Math.max(1, layout.value.h - 3);
-  if (type === 'section-box') return Math.max(1, layout.value.h - 3);
-  if (type === 'accordion') return Math.max(1, layout.value.h - 5);
+  // Container has no internal grid header — use full layout height so children reach the dashed drop zone bottom.
+  if (type === "container") return Math.max(1, layout.value.h);
+  if (type === "accordion") return Math.max(1, layout.value.h - 5);
   return Math.max(1, layout.value.h - 3);
 });
 

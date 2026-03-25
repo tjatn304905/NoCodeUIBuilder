@@ -2,6 +2,9 @@ export const CELL_SIZE = 20;
 export const CANVAS_WIDTH = 1280;
 export const COLS = CANVAS_WIDTH / CELL_SIZE;
 
+/** Default fill when Container has showBackground */
+export const DEFAULT_CONTAINER_BG = "#1e293b";
+
 export const MOCK_API_DATA = {
   apiData: {
     user: {
@@ -40,16 +43,15 @@ export const COMPONENT_CATALOG = [
     group: "Containers",
     items: [
       {
-        type: "super-section",
-        label: "Super Section",
-        defaultSize: { w: 64, h: 30 },
-        defaultProps: { title: "Super Section", subtitle: "", icon: "folder", bgColor: "#ffffff" }
-      },
-      {
-        type: "section-box",
-        label: "Section Box",
+        type: "container",
+        label: "Container (Section)",
         defaultSize: { w: 32, h: 16 },
-        defaultProps: { title: "Section Title", icon: "folder", bgColor: "#ffffff" }
+        defaultProps: {
+          showBorder: true,
+          showBackground: true,
+          padding: 12,
+          bgColor: DEFAULT_CONTAINER_BG
+        }
       },
       {
         type: "accordion",
@@ -95,6 +97,19 @@ export const COMPONENT_CATALOG = [
   {
     group: "Displays",
     items: [
+      {
+        type: "label",
+        label: "Label",
+        defaultSize: { w: 24, h: 3 },
+        defaultProps: {
+          text: "Title or description",
+          preset: "body",
+          customFontSize: 0,
+          color: "#e2e8f0",
+          fontWeight: "normal",
+          icon: "none"
+        }
+      },
       {
         type: "data-fact",
         label: "Data Fact",
@@ -173,4 +188,4 @@ export const COMPONENT_CATALOG = [
   }
 ];
 
-export const CONTAINER_TYPES = new Set(["super-section", "section-box", "accordion", "card-list-repeater"]);
+export const CONTAINER_TYPES = new Set(["container", "accordion", "card-list-repeater", "data-grid"]);
