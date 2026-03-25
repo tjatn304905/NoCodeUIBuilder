@@ -20,6 +20,15 @@
         v-if="isSelected && !isDragging && !isResizing"
         class="absolute -top-7 right-0 z-50 flex items-center gap-1"
       >
+        <button
+          v-if="dataPathForPreview"
+          class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-100 shadow hover:bg-slate-700"
+          title="Preview data"
+          @pointerdown.stop
+          @click.stop="$emit('open-data-preview', dataPathForPreview)"
+        >
+          Data
+        </button>
         <span class="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm">
           {{ component.type }}
         </span>
@@ -60,6 +69,7 @@
               :component="child"
               :cols="nestedCols"
               :rows="nestedRows"
+              @open-data-preview="$emit('open-data-preview', $event)"
             />
           </template>
         </NodeBody>
@@ -83,6 +93,7 @@
           :component="child"
           :cols="nestedCols"
           :rows="nestedRows"
+          @open-data-preview="$emit('open-data-preview', $event)"
         />
       </template>
     </NodeBody>
@@ -117,6 +128,7 @@ const props = defineProps({
   cols: { type: Number, required: true },
   rows: { type: Number, default: 9999 }
 });
+defineEmits(["open-data-preview"]);
 
 const isDragging = ref(false);
 const isResizing = ref(false);
@@ -128,6 +140,10 @@ const ghostH = ref(0);
 const isSelected = computed(() => store.selectedId.value === props.component.id);
 const isContainer = computed(() => CONTAINER_TYPES.has(props.component.type));
 const childComponents = computed(() => store.getChildren(props.component.id));
+const dataPathForPreview = computed(() => {
+  const p = props.component.props || {};
+  return p.dataSourcePath || p.dataPath || "";
+});
 
 const layout = computed(() => {
   const l = props.component.layout;
