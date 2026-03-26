@@ -11,6 +11,26 @@
           {{ previewMode ? "Exit Preview" : "Preview" }}
         </button>
         <button class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="showExport = true">View JSON</button>
+        <div class="h-5 w-px bg-slate-700" />
+        <!-- Undo / Redo -->
+        <button
+          class="flex h-7 w-7 items-center justify-center rounded-md border transition-colors"
+          :class="canUndo ? 'border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-slate-100' : 'border-slate-700 text-slate-600 cursor-not-allowed'"
+          :disabled="!canUndo"
+          @click="onUndo"
+          title="Undo (Ctrl+Z)"
+        >
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
+        </button>
+        <button
+          class="flex h-7 w-7 items-center justify-center rounded-md border transition-colors"
+          :class="canRedo ? 'border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-slate-100' : 'border-slate-700 text-slate-600 cursor-not-allowed'"
+          :disabled="!canRedo"
+          @click="onRedo"
+          title="Redo (Ctrl+Y)"
+        >
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3"/></svg>
+        </button>
       </div>
       <div class="flex items-center gap-2">
         <!-- Template Selector -->
@@ -21,12 +41,18 @@
         <div class="h-5 w-px bg-slate-700" />
         <!-- Import JSON -->
         <button class="flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="onImportJson" title="Import JSON file">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
           Import
         </button>
         <!-- Export JSON -->
         <button class="flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="onExportJson" title="Export as JSON file">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" 
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>   
           Export
         </button>
         <div class="h-5 w-px bg-slate-700" />
@@ -478,7 +504,7 @@
 </template>
 
 <script setup>
-import { computed, ref, h, watch, provide } from "vue";
+import { computed, ref, h, watch, provide, onMounted, onUnmounted } from "vue";
 import BuilderNode from "./BuilderNode.vue";
 import { COMPONENT_CATALOG, COLS, CANVAS_WIDTH, CELL_SIZE, MOCK_API_DATA, CONTAINER_TYPES } from "../data/componentCatalog";
 import { DEMO_TEMPLATES } from "../data/demoTemplates";
@@ -489,14 +515,15 @@ import { getPath } from "../runtime/runtimeEngine";
 const store = useBuilderStore();
 const {
   state, selectedId, previewMode, selectedComponent, rootComponents, canvasRows,
-  deselectAll, deleteComponent, addComponent, updateProp, typeLabel,
+  deselectAll, deleteComponent, addComponent, updateProp, updatePropUndoable, typeLabel,
   rebuildRuntimeVars, seedFieldValues, runAllPageLoadTriggers, runPreviewTrigger,
   runtimeVars, fieldValues, loadingByComponent,
   addLogicVariable, removeLogicVariable, updateLogicVariable,
   addOrderEvent, removeOrderEvent,
   updateGridPosRect, updateComponentParent,
   saveToLocalStorage,
-  clearAll, exportToFile, importFromFile, loadTemplate
+  clearAll, exportToFile, importFromFile, loadTemplate,
+  undo, redo, canUndo, canRedo, commitSnapshot
 } = store;
 
 provide(PREVIEW_CTX, { runPreviewTrigger, runtimeVars, fieldValues, loadingByComponent });
@@ -514,6 +541,28 @@ function showToast(message, type = "success", duration = 2500) {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { toastVisible.value = false; }, duration);
 }
+
+/* ─── Undo / Redo ─── */
+function onUndo() { undo(); }
+function onRedo() { redo(); }
+
+function handleKeyboard(e) {
+  // Skip when typing in input/textarea/select/contenteditable
+  const tag = e.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target.isContentEditable) return;
+
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key === "z" && !e.shiftKey) {
+    e.preventDefault();
+    onUndo();
+  } else if (ctrl && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+    e.preventDefault();
+    onRedo();
+  }
+}
+
+onMounted(() => { window.addEventListener("keydown", handleKeyboard); });
+onUnmounted(() => { window.removeEventListener("keydown", handleKeyboard); });
 
 /* ─── Persistence actions ─── */
 function onSave() {
@@ -872,7 +921,26 @@ function toggleDataTree(path) {
   expandedDataPaths.value = next;
 }
 
-function p(key, value) { updateProp(key, value); }
+/* Property update with debounced history recording.
+   Rapid edits (e.g. typing in text field) are batched into one undo step.
+   We push the pre-edit state once, then after the debounce settles we push
+   the post-edit state.  Both pushes use commitSnapshot() which simply records
+   the current state (deduplication in historyManager prevents identical entries). */
+let _propDebounceTimer = null;
+let _propSnapshotTaken = false;
+
+function p(key, value) {
+  if (!_propSnapshotTaken) {
+    commitSnapshot(); // push pre-edit state once
+    _propSnapshotTaken = true;
+  }
+  updateProp(key, value); // apply immediately (no history push)
+  clearTimeout(_propDebounceTimer);
+  _propDebounceTimer = setTimeout(() => {
+    _propSnapshotTaken = false;
+    commitSnapshot(); // push the final "after" state once edits settle
+  }, 600);
+}
 
 function onPaletteDragStart(event, type) {
   if (previewMode.value) { event.preventDefault(); return; }

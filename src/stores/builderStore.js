@@ -1,11 +1,15 @@
 import { reactive, ref, computed } from "vue";
 import { COMPONENT_CATALOG, COLS, CELL_SIZE, CANVAS_WIDTH, DEFAULT_CONTAINER_BG } from "../data/componentCatalog";
 import { parseInitialValue, runActionChain } from "../runtime/runtimeEngine";
+import { useHistoryManager } from "./historyManager";
 
 let uid = 1;
 let logicUid = 1;
 
 const STORAGE_KEY = "nocode_builder_save";
+
+/* ─── History manager instance ─── */
+const history = useHistoryManager();
 
 function newCompUuid() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -55,6 +59,110 @@ const canvasRows = computed(() => {
   }
   return maxBottom + 2;
 });
+
+/* ═══════════════════════════════════════
+ * Snapshot helpers for Undo / Redo
+ * ═══════════════════════════════════════
+ *
+ * Design (post-action recording):
+ *   Every mutating function calls _pushCurrentState() AFTER it has
+ *   made its change.  The history stack therefore always contains
+ *   "result" states.  Undo/Redo simply restore one of those states.
+ *
+ *   _isUndoRedoing prevents the restore itself from being recorded.
+ */
+
+let _isUndoRedoing = false;
+
+/** Deep-clone the builder state into a plain object. */
+function _takeSnapshot() {
+  return JSON.parse(JSON.stringify({
+    screenName: state.screenName,
+    components: state.components,
+    logic: state.logic
+  }));
+}
+
+/** Push the current (post-mutation) state to the history stack.
+ *  No-op when we are inside an undo/redo restoration. */
+function _pushCurrentState() {
+  if (_isUndoRedoing) return;
+  history.pushState(_takeSnapshot());
+}
+
+/** Restore a snapshot into the reactive state. */
+function _restoreSnapshot(snap) {
+  if (!snap) return;
+  state.screenName = snap.screenName ?? "Canvas";
+  state.components = snap.components ?? [];
+  state.logic.variables = snap.logic?.variables ?? [];
+  state.logic.orderEvents = snap.logic?.orderEvents ?? [];
+  state.logic.activeScreen = snap.logic?.activeScreen ?? "default";
+  // Recalculate uid/logicUid to avoid id collisions
+  let maxCmpNum = 0, maxLogicNum = 0;
+  for (const c of state.components) {
+    const m = String(c.id).match(/\d+/);
+    if (m) maxCmpNum = Math.max(maxCmpNum, Number(m[0]));
+  }
+  for (const v of state.logic.variables) {
+    const m = String(v.id).match(/\d+/);
+    if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
+  }
+  for (const e of state.logic.orderEvents) {
+    const m = String(e.id).match(/\d+/);
+    if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
+  }
+  uid = maxCmpNum + 1;
+  logicUid = maxLogicNum + 1;
+}
+
+function undo() {
+  if (!history.canUndo.value) return;
+  _isUndoRedoing = true;
+  try {
+    const snap = history.undo();
+    if (snap) {
+      _restoreSnapshot(snap);
+      selectedId.value = null;
+    }
+  } finally {
+    _isUndoRedoing = false;
+  }
+}
+
+function redo() {
+  if (!history.canRedo.value) return;
+  _isUndoRedoing = true;
+  try {
+    const snap = history.redo();
+    if (snap) {
+      _restoreSnapshot(snap);
+      selectedId.value = null;
+    }
+  } finally {
+    _isUndoRedoing = false;
+  }
+}
+
+/**
+ * For drag/resize: we need to record the state BEFORE the move starts,
+ * so that undo returns to that state.  The actual updateLayout() at the
+ * end of the drag will push the "after" state.
+ */
+let _moveSnapshotPending = false;
+function recordBeforeMove() {
+  // Push the current (pre-move) state so it exists in the stack.
+  // The flag prevents updateLayout from double-pushing.
+  if (_isUndoRedoing) return;
+  _pushCurrentState();
+  _moveSnapshotPending = true;
+}
+
+/** Public helper: push the current state as a history entry.
+ *  Used by the UI layer (e.g. after debounced property edits settle). */
+function commitSnapshot() {
+  _pushCurrentState();
+}
 
 function createComponent(type, parentId, layout, extraProps = {}) {
   const id = `cmp_${uid++}`;
@@ -125,6 +233,10 @@ function init() {
   state.logic.variables = [];
   state.logic.orderEvents = [];
   state.logic.activeScreen = "default";
+
+  // Seed history with the initial empty state
+  history.clear();
+  history.pushState(_takeSnapshot());
 }
 
 function getChildren(parentId) {
@@ -144,6 +256,7 @@ function deleteComponent(id) {
   collect(id);
   state.components = state.components.filter((c) => !idsToRemove.has(c.id));
   if (idsToRemove.has(selectedId.value)) selectedId.value = null;
+  _pushCurrentState();
 }
 
 function rectsOverlap(a, b) {
@@ -189,6 +302,13 @@ function updateLayout(componentId, patch, maxCols = COLS, maxRows = 9999) {
   if (nl.x + nl.w > maxCols) nl.w = Math.max(1, maxCols - nl.x);
   if (nl.y + nl.h > maxRows) nl.y = Math.max(0, maxRows - nl.h);
   target.layout = resolveOverlap(nl, target.parentId, componentId, maxCols, maxRows);
+
+  // After a drag/resize that was started with recordBeforeMove(),
+  // push the resulting state so undo has "before" AND "after".
+  if (_moveSnapshotPending) {
+    _moveSnapshotPending = false;
+    _pushCurrentState();
+  }
 }
 
 function updateGridPosRect(componentId, patch, maxCols = COLS) {
@@ -204,6 +324,7 @@ function updateGridPosRect(componentId, patch, maxCols = COLS) {
   };
   const resolved = resolveOverlap(layout, target.parentId, componentId, maxCols);
   target.layout = resolved;
+  _pushCurrentState();
 }
 
 function isDescendantOf(ancestorId, nodeId) {
@@ -223,6 +344,7 @@ function updateComponentParent(componentId, newParentId) {
   if (pid && isDescendantOf(componentId, pid)) return;
   target.parentId = pid;
   target.layout = resolveOverlap(target.layout, target.parentId, componentId, COLS);
+  _pushCurrentState();
 }
 
 function addComponent(type, parentId, rawX, rawY, maxCols = COLS) {
@@ -237,6 +359,7 @@ function addComponent(type, parentId, rawX, rawY, maxCols = COLS) {
   ensureComponentSchema(comp);
   state.components.push(comp);
   selectedId.value = comp.id;
+  _pushCurrentState();
   return comp;
 }
 
@@ -244,6 +367,12 @@ function updateProp(key, value) {
   const idx = state.components.findIndex((c) => c.id === selectedId.value);
   if (idx === -1) return;
   state.components[idx].props[key] = value;
+}
+
+/** Undoable version — updates prop then records snapshot */
+function updatePropUndoable(key, value) {
+  updateProp(key, value);
+  _pushCurrentState();
 }
 
 /* ─── Runtime Vars ─── */
@@ -301,6 +430,7 @@ function addLogicVariable() {
   logicUid += 1;
   state.logic.variables.push({ id, name, type: "string", initialValue: "" });
   runtimeVars[name] = "";
+  _pushCurrentState();
 }
 
 function removeLogicVariable(variableId) {
@@ -308,6 +438,7 @@ function removeLogicVariable(variableId) {
   if (idx < 0) return;
   const [rm] = state.logic.variables.splice(idx, 1);
   if (rm?.name) delete runtimeVars[rm.name];
+  _pushCurrentState();
 }
 
 function updateLogicVariable(variableId, patch) {
@@ -324,6 +455,7 @@ function updateLogicVariable(variableId, patch) {
   if (patch.type != null || patch.initialValue != null || patch.name != null) {
     runtimeVars[v.name] = parseInitialValue(v.type, v.initialValue);
   }
+  _pushCurrentState();
 }
 
 /* ─── ORDER EVENT CRUD ─── */
@@ -337,15 +469,18 @@ function addOrderEvent() {
     onSuccessVariable: "",
     onSuccessPath: ""
   });
+  _pushCurrentState();
 }
 
 function removeOrderEvent(eventId) {
   state.logic.orderEvents = state.logic.orderEvents.filter((e) => e.id !== eventId);
+  _pushCurrentState();
 }
 
 function updateOrderEvent(eventId, patch) {
   const e = state.logic.orderEvents.find((x) => x.id === eventId);
   if (e) Object.assign(e, patch);
+  _pushCurrentState();
 }
 
 /* ─── Helpers ─── */
@@ -442,6 +577,10 @@ function hydrateState(json) {
     selectedId.value = null;
     previewMode.value = false;
 
+    // Reset history on hydration (import / template load)
+    history.clear();
+    history.pushState(_takeSnapshot());
+
     return true;
   } catch (err) {
     console.error("[Builder] Hydration failed:", err);
@@ -491,6 +630,9 @@ function clearAll() {
   for (const k of Object.keys(loadingByComponent)) delete loadingByComponent[k];
   selectedId.value = null;
   previewMode.value = false;
+
+  history.clear();
+  history.pushState(_takeSnapshot());
 }
 
 /* ─── File Export / Import ─── */
@@ -557,6 +699,7 @@ export function useBuilderStore() {
     updateLayout,
     addComponent,
     updateProp,
+    updatePropUndoable,
     typeLabel,
     checkOverlap,
     rebuildRuntimeVars,
@@ -580,6 +723,13 @@ export function useBuilderStore() {
     clearAll,
     exportToFile,
     importFromFile,
-    loadTemplate
+    loadTemplate,
+    /* Undo / Redo */
+    undo,
+    redo,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    recordBeforeMove,
+    commitSnapshot
   };
 }

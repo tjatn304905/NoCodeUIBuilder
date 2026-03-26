@@ -250,6 +250,7 @@ function onPointerDown(e) {
     const dx = ev.clientX - startX;
     const dy = ev.clientY - startY;
     if (!moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+    if (!moved) store.recordBeforeMove();
     moved = true;
     isDragging.value = true;
 
@@ -295,7 +296,13 @@ function onResizeStart(e, handle) {
   const top = handle.includes("n");
   const bottom = handle.includes("s");
 
+  let resizeStarted = false;
+
   function onMove(ev) {
+    if (!resizeStarted) {
+      store.recordBeforeMove();
+      resizeStarted = true;
+    }
     isResizing.value = true;
     const dCols = Math.round((ev.clientX - startX) / CELL_SIZE);
     const dRows = Math.round((ev.clientY - startY) / CELL_SIZE);
