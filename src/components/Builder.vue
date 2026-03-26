@@ -178,29 +178,29 @@
               <!-- Schema: 5 common attributes -->
               <div class="rounded-md border border-slate-600/80 bg-slate-800/60 p-2">
                 <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Component identity</p>
-                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">COMP_ID</span>
+                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">compId</span>
                   <input type="text" readonly class="h-8 w-full cursor-not-allowed rounded-md border border-slate-600 bg-slate-900/80 px-2 font-mono text-[11px] text-slate-400" :value="selectedComponent.compId || ''" />
                 </label>
-                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">PARENT_ID</span>
+                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">parentId</span>
                   <select class="h-8 w-full rounded-md border border-slate-600 bg-slate-800 px-2 text-xs text-slate-100" :value="selectedComponent.parentId || ''" @change="onParentChange($event)">
                     <option v-for="opt in parentSelectOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                   </select>
                 </label>
-                <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">GRID_POS</p>
+                <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">layout (grid cells)</p>
                 <div class="grid grid-cols-2 gap-2">
-                  <FieldNumber label="x" :model-value="gridPosEditor.x" @update:model-value="(v) => patchGridPos({ x: v })" />
-                  <FieldNumber label="y" :model-value="gridPosEditor.y" @update:model-value="(v) => patchGridPos({ y: v })" />
-                  <FieldNumber label="colSpan" :model-value="gridPosEditor.colSpan" @update:model-value="(v) => patchGridPos({ colSpan: v })" />
-                  <FieldNumber label="rowSpan" :model-value="gridPosEditor.rowSpan" @update:model-value="(v) => patchGridPos({ rowSpan: v })" />
+                  <FieldNumber label="x" :model-value="layoutEditor.x" @update:model-value="(v) => patchGridPos({ x: v })" />
+                  <FieldNumber label="y" :model-value="layoutEditor.y" @update:model-value="(v) => patchGridPos({ y: v })" />
+                  <FieldNumber label="w" :model-value="layoutEditor.w" @update:model-value="(v) => patchGridPos({ w: v })" />
+                  <FieldNumber label="h" :model-value="layoutEditor.h" @update:model-value="(v) => patchGridPos({ h: v })" />
                 </div>
               </div>
 
               <div class="rounded-md border border-amber-500/25 bg-slate-800/50 p-2">
                 <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-amber-200/90">Display &amp; Access Logic</p>
-                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">HIDDEN_CON</span>
+                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">hiddenCon</span>
                   <textarea :value="selectedComponent.props.hiddenCon ?? ''" rows="2" class="w-full rounded-md border border-slate-600 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-200" placeholder="e.g. {{$state.flag}} or true" @input="p('hiddenCon', $event.target.value)" />
                 </label>
-                <label class="block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">READONLY_CON</span>
+                <label class="block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">readonlyCon</span>
                   <textarea :value="selectedComponent.props.readonlyCon ?? ''" rows="2" class="w-full rounded-md border border-slate-600 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-200" placeholder="Expression when read-only in preview" @input="p('readonlyCon', $event.target.value)" />
                 </label>
               </div>
@@ -208,8 +208,8 @@
               <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
               <template v-if="selectedComponent.type !== 'container'">
                 <FieldText v-if="selectedComponent.type !== 'label'" label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
-                <FieldSelect label="Horizontal align" :model-value="selectedComponent.props.alignment" :options="['left','center','right']" @update:model-value="(v) => p('alignment', v)" />
-                <FieldSelect label="Vertical align" :model-value="selectedComponent.props.valign" :options="['top','middle','bottom']" @update:model-value="(v) => p('valign', v)" />
+                <FieldSelect label="Horizontal align" :model-value="selectedComponent.props.hAlign" :options="['left','center','right']" @update:model-value="(v) => p('hAlign', v)" />
+                <FieldSelect label="Vertical align" :model-value="selectedComponent.props.vAlign" :options="['top','middle','bottom']" @update:model-value="(v) => p('vAlign', v)" />
               </template>
 
               <!-- ═══ Events ═══ -->
@@ -479,17 +479,11 @@ function onParentChange(ev) {
   updateComponentParent(c.id, ev.target.value || null);
 }
 
-const gridPosEditor = computed(() => {
+const layoutEditor = computed(() => {
   const c = selectedComponent.value;
-  if (!c) return { x: 0, y: 0, colSpan: 1, rowSpan: 1 };
+  if (!c) return { x: 0, y: 0, w: 1, h: 1 };
   const l = c.layout;
-  const g = c.gridPos;
-  return {
-    x: g?.x ?? l.x,
-    y: g?.y ?? l.y,
-    colSpan: g?.colSpan ?? l.w,
-    rowSpan: g?.rowSpan ?? l.h
-  };
+  return { x: l.x, y: l.y, w: l.w, h: l.h };
 });
 
 function patchGridPos(patch) {
@@ -682,20 +676,11 @@ const jsonExport = computed(() => {
     logic: JSON.parse(JSON.stringify(state.logic)),
     components: state.components.map((c) => ({
       id: c.id,
-      COMP_ID: c.compId,
-      PARENT_ID: c.parentId,
-      GRID_POS: {
-        x: c.gridPos?.x ?? c.layout.x,
-        y: c.gridPos?.y ?? c.layout.y,
-        colSpan: c.gridPos?.colSpan ?? c.layout.w,
-        rowSpan: c.gridPos?.rowSpan ?? c.layout.h
-      },
-      type: c.type,
+      compId: c.compId,
       parentId: c.parentId,
+      type: c.type,
       layout: { ...c.layout },
-      props: { ...c.props },
-      HIDDEN_CON: c.props.hiddenCon ?? "",
-      READONLY_CON: c.props.readonlyCon ?? "",
+      props: JSON.parse(JSON.stringify(c.props)),
       _binding: {
         fieldId: c.props.fieldId,
         dataPath: c.props.dataPath || c.props.dataSourcePath || null,

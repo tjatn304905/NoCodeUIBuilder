@@ -15,16 +15,6 @@ function newCompUuid() {
   });
 }
 
-function syncGridPosFromLayout(comp) {
-  if (!comp.layout) return;
-  comp.gridPos = {
-    x: comp.layout.x,
-    y: comp.layout.y,
-    colSpan: comp.layout.w,
-    rowSpan: comp.layout.h
-  };
-}
-
 const state = reactive({
   screenName: "Canvas",
   components: [],
@@ -74,17 +64,11 @@ function createComponent(type, parentId, layout, extraProps = {}) {
     type,
     parentId,
     layout: layoutCopy,
-    gridPos: {
-      x: layoutCopy.x,
-      y: layoutCopy.y,
-      colSpan: layoutCopy.w,
-      rowSpan: layoutCopy.h
-    },
     props: {
       fieldId: extraProps.fieldId ?? `${type.replaceAll("-", "_")}_${id}`,
       label: descriptor?.label ?? labelFromType(type),
-      alignment: "left",
-      valign: "top",
+      hAlign: "left",
+      vAlign: "top",
       hiddenCon: "",
       readonlyCon: "",
       events: { onPageLoad: [], onClick: [], onChange: [] },
@@ -102,7 +86,28 @@ function createComponent(type, parentId, layout, extraProps = {}) {
 
 function ensureComponentSchema(comp) {
   if (!comp.compId) comp.compId = newCompUuid();
-  if (!comp.gridPos) syncGridPosFromLayout(comp);
+  if (comp.gridPos && comp.layout) {
+    delete comp.gridPos;
+  } else if (comp.gridPos && !comp.layout) {
+    const gp = comp.gridPos;
+    comp.layout = {
+      x: Number(gp.x) || 0,
+      y: Number(gp.y) || 0,
+      w: Math.max(1, Number(gp.colSpan ?? gp.w) || 1),
+      h: Math.max(1, Number(gp.rowSpan ?? gp.h) || 1)
+    };
+    delete comp.gridPos;
+  }
+  if (comp.props) {
+    if (comp.props.alignment != null && comp.props.hAlign == null) {
+      comp.props.hAlign = comp.props.alignment;
+      delete comp.props.alignment;
+    }
+    if (comp.props.valign != null && comp.props.vAlign == null) {
+      comp.props.vAlign = comp.props.valign;
+      delete comp.props.valign;
+    }
+  }
   if (comp.props.hiddenCon === undefined) comp.props.hiddenCon = "";
   if (comp.props.readonlyCon === undefined) comp.props.readonlyCon = "";
   if (comp.type === "data-fact") {
@@ -126,7 +131,7 @@ function init() {
     text: "Telecom Customer Management", preset: "h2", color: "#f1f5f9", fontWeight: "bold", fieldId: "title_main"
   });
   const statusBadge = createComponent("status-badge", headerBox.id, { x: 30, y: 0, w: 8, h: 3 }, {
-    status: "Online", tone: "success", fieldId: "system_status", alignment: "right", valign: "middle"
+    status: "Online", tone: "success", fieldId: "system_status", hAlign: "right", vAlign: "middle"
   });
   const subtitleLbl = createComponent("label", headerBox.id, { x: 0, y: 3, w: IW, h: 2 }, {
     text: "Search and manage customer accounts, plans, and billing", preset: "small", color: "#64748b", fontWeight: "normal", fieldId: "subtitle_main"
@@ -172,7 +177,7 @@ function init() {
     text: "Customer Information", preset: "h3", color: "#f1f5f9", icon: "folder", fieldId: "sec_info_title"
   });
   const badgeActive = createComponent("status-badge", infoBox.id, { x: 30, y: 0, w: 8, h: 3 }, {
-    status: "Active", tone: "success", fieldId: "cust_status_badge", alignment: "right", valign: "middle"
+    status: "Active", tone: "success", fieldId: "cust_status_badge", hAlign: "right", vAlign: "middle"
   });
   const factPlan = createComponent("data-fact", infoBox.id, { x: 0, y: 4, w: HW, h: 4 }, {
     label: "Current Plan", fieldId: "cust_plan", dataPath: "@apiData.user.plan"
@@ -203,7 +208,7 @@ function init() {
 
   /* ── 5. Divider ── */
   const divider1 = createComponent("divider", null, { x: 0, y: 58, w: W, h: 1 }, {
-    color: "#334155", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle", fieldId: "divider_1"
+    color: "#334155", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle", fieldId: "divider_1"
   });
 
   /* ── 6. Customer List (Data Grid) ── */
@@ -230,7 +235,7 @@ function init() {
 
   /* ── 7. Divider ── */
   const divider2 = createComponent("divider", null, { x: 0, y: 78, w: W, h: 1 }, {
-    color: "#334155", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle", fieldId: "divider_2"
+    color: "#334155", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle", fieldId: "divider_2"
   });
 
   /* ── 8. Payment Accordion ── */
@@ -243,7 +248,7 @@ function init() {
 
   /* ── 9. Divider ── */
   const divider3 = createComponent("divider", null, { x: 0, y: 97, w: W, h: 1 }, {
-    color: "#334155", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle", fieldId: "divider_3"
+    color: "#334155", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle", fieldId: "divider_3"
   });
 
   /* ── 10. Available Plans ── */
@@ -358,22 +363,21 @@ function updateLayout(componentId, patch, maxCols = COLS, maxRows = 9999) {
   if (nl.x + nl.w > maxCols) nl.w = Math.max(1, maxCols - nl.x);
   if (nl.y + nl.h > maxRows) nl.y = Math.max(0, maxRows - nl.h);
   target.layout = resolveOverlap(nl, target.parentId, componentId, maxCols, maxRows);
-  syncGridPosFromLayout(target);
 }
 
 function updateGridPosRect(componentId, patch, maxCols = COLS) {
   const target = state.components.find((c) => c.id === componentId);
   if (!target) return;
-  const gp = { ...target.gridPos, ...patch };
+  const cur = target.layout;
+  const merged = { ...cur, ...patch };
   const layout = {
-    x: Math.max(0, Number(gp.x) || 0),
-    y: Math.max(0, Number(gp.y) || 0),
-    w: Math.max(1, Number(gp.colSpan) || 1),
-    h: Math.max(1, Number(gp.rowSpan) || 1)
+    x: Math.max(0, Number(merged.x) || 0),
+    y: Math.max(0, Number(merged.y) || 0),
+    w: Math.max(1, Number(merged.w) || 1),
+    h: Math.max(1, Number(merged.h) || 1)
   };
   const resolved = resolveOverlap(layout, target.parentId, componentId, maxCols);
   target.layout = resolved;
-  syncGridPosFromLayout(target);
 }
 
 function isDescendantOf(ancestorId, nodeId) {
@@ -393,7 +397,6 @@ function updateComponentParent(componentId, newParentId) {
   if (pid && isDescendantOf(componentId, pid)) return;
   target.parentId = pid;
   target.layout = resolveOverlap(target.layout, target.parentId, componentId, COLS);
-  syncGridPosFromLayout(target);
 }
 
 function addComponent(type, parentId, rawX, rawY, maxCols = COLS) {

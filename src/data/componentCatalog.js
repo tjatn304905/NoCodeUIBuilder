@@ -135,7 +135,7 @@ export const COMPONENT_CATALOG = [
         type: "divider",
         label: "Divider",
         defaultSize: { w: 32, h: 2 },
-        defaultProps: { color: "#cbd5e1", orientation: "horizontal", thickness: 1, alignment: "center", valign: "middle" }
+        defaultProps: { color: "#cbd5e1", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle" }
       },
       {
         type: "data-grid",

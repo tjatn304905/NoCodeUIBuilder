@@ -236,18 +236,32 @@
     <template v-else-if="component.type === 'date-picker'">
       <div :class="formFieldStackClass">
       <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <div class="relative">
+      <div
+        class="group relative rounded-lg border border-slate-500/45 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-[border-color,box-shadow] focus-within:border-cyan-500/40 focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_1px_rgba(34,211,238,0.12)]"
+      >
         <input
+          ref="dateInputRef"
           type="date"
           :placeholder="component.props.placeholder || 'YYYY-MM-DD'"
-          class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 pr-8 text-xs text-slate-200 placeholder:text-slate-500"
-          :class="preview ? '' : 'pointer-events-none'"
+          class="node-date-input h-9 w-full min-w-0 rounded-lg border-0 bg-transparent py-2 pl-3 pr-10 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-0"
+          :class="[
+            preview ? '' : 'pointer-events-none',
+            preview && !isLogicReadonly ? 'cursor-pointer' : 'cursor-default'
+          ]"
           :readonly="preview && isLogicReadonly"
           :value="preview ? previewFieldModel() : ''"
+          @click="onDateInputClick"
           @input="onDatePreviewInput"
           @change="onDatePreviewInput"
         />
-        <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm text-slate-500">📅</span>
+        <span
+          class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-cyan-400/85"
+          aria-hidden="true"
+        >
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </span>
       </div>
       </div>
     </template>
@@ -271,11 +285,11 @@
     <template v-else-if="component.type === 'divider'">
       <!--
         Divider 배치 로직:
-        - outer root가 flex(row) + align/valign 기반으로 위치를 잡아주고,
+        - outer root가 flex(row) + hAlign/vAlign 기반으로 위치를 잡아주고,
         - 여기서는 라인 엘리먼트만 orientation/thickness로 크기 조절해서 렌더링합니다.
 
-        horizontal: width=100%, height=thickness, valign(top/middle/bottom)에 따라 y 위치
-        vertical: width=thickness, height=100%, alignment(left/center/right)에 따라 x 위치
+        horizontal: width=100%, height=thickness, vAlign(top/middle/bottom)에 따라 y 위치
+        vertical: width=thickness, height=100%, hAlign(left/center/right)에 따라 x 위치
       -->
       <div class="shrink-0" :style="dividerLineStyle" />
     </template>
@@ -301,7 +315,7 @@
 </template>
 
 <script setup>
-import { computed, inject } from "vue";
+import { computed, inject, ref } from "vue";
 import { MOCK_API_DATA, DEFAULT_CONTAINER_BG, DEFAULT_DATA_FACT_BG, CONTAINER_TYPES } from "../data/componentCatalog";
 import { PREVIEW_CTX } from "../runtime/previewContext";
 import { resolveDataSource as resolveBinding, evaluateLogicCon } from "../runtime/runtimeEngine";
@@ -317,6 +331,8 @@ const props = defineProps({
 defineEmits(["select", "drop-item"]);
 
 const previewCtx = inject(PREVIEW_CTX, null);
+
+const dateInputRef = ref(null);
 
 const logicEvalCtx = computed(() => ({
   fieldValues: previewCtx?.fieldValues || {},
@@ -374,10 +390,11 @@ const rootSurfaceClass = computed(() => {
 
 const showSelectionRing = computed(() => props.isSelected && !props.preview);
 
-/** alignment prop = horizontal; valign = vertical (grid cell, flex-row semantics). */
+/** hAlign = horizontal; vAlign = vertical (grid cell, flex-row semantics). */
 function cellHVParts() {
-  const a = props.component.props?.alignment || "center";
-  const v = props.component.props?.valign || "middle";
+  const p = props.component.props || {};
+  const a = (p.hAlign ?? p.alignment) || "center";
+  const v = (p.vAlign ?? p.valign) || "middle";
   const justifyH = { left: "justify-start", center: "justify-center", right: "justify-end" };
   const itemsV = { top: "items-start", middle: "items-center", bottom: "items-end" };
   return {
@@ -405,8 +422,8 @@ const formFieldStackClass = "flex min-h-0 w-full min-w-0 flex-col gap-1";
 
 const dataFactLayoutClass = computed(() => {
   const p = props.component.props || {};
-  const a = p.alignment || "left";
-  const v = p.valign || "top";
+  const a = (p.hAlign ?? p.alignment) ?? "left";
+  const v = (p.vAlign ?? p.valign) ?? "top";
   const justifyH = { left: "justify-start", center: "justify-center", right: "justify-end" };
   const itemsV = { top: "items-start", middle: "items-center", bottom: "items-end" };
   const itemsH = { left: "items-start", center: "items-center", right: "items-end" };
@@ -473,6 +490,18 @@ function onDatePreviewInput(e) {
   onPreviewRun("onChange");
 }
 
+function onDateInputClick(e) {
+  if (!props.preview || isLogicReadonly.value) return;
+  const el = e.currentTarget;
+  if (typeof el.showPicker === "function") {
+    try {
+      el.showPicker();
+    } catch {
+      /* secure context / browser policy */
+    }
+  }
+}
+
 const isPreviewLoading = computed(
   () => props.preview && previewCtx?.loadingByComponent?.[props.component.id]
 );
@@ -520,11 +549,11 @@ const labelIconChar = computed(() => {
   return LABEL_ICON_MAP[icon] ?? String(icon)[0]?.toUpperCase() ?? "";
 });
 
-/** Label row: alignment = horizontal (justify), valign = vertical (items). */
+/** Label row: hAlign = horizontal (justify), vAlign = vertical (items). */
 const labelFlexAlignClass = computed(() => {
   const p = props.component.props || {};
-  const a = p.alignment || "left";
-  const v = p.valign || "top";
+  const a = (p.hAlign ?? p.alignment) ?? "left";
+  const v = (p.vAlign ?? p.valign) ?? "top";
   const justify = { left: "justify-start", center: "justify-center", right: "justify-end" };
   const items = { top: "items-start", middle: "items-center", bottom: "items-end" };
   return `${justify[a] || "justify-start"} ${items[v] || "items-start"}`;
@@ -538,7 +567,8 @@ const labelTextStyle = computed(() => {
   const fontSize = customFs > 0 ? customFs : preset.fontSize;
   const fwKey = (p.fontWeight || "normal").toLowerCase().replace(/\s+/g, "-");
   const fontWeight = FONT_WEIGHT_MAP[fwKey] ?? preset.fontWeight;
-  const align = p.alignment === "center" ? "center" : p.alignment === "right" ? "right" : "left";
+  const ha = (p.hAlign ?? p.alignment) ?? "left";
+  const align = ha === "center" ? "center" : ha === "right" ? "right" : "left";
   return {
     fontSize: `${fontSize}px`,
     fontWeight,
@@ -726,3 +756,21 @@ function parseFacts(raw = "") {
   }).filter((f) => f.key);
 }
 </script>
+
+<style scoped>
+/* One visible calendar affordance: stretch native picker hit-area to full field (Blink/WebKit). */
+.node-date-input {
+  position: relative;
+  color-scheme: dark;
+}
+.node-date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+</style>
