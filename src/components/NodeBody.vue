@@ -375,7 +375,9 @@ const SELF_CHROME_TYPES = new Set([
 
 const rootSurfaceClass = computed(() => {
   if (props.component.type === "divider") {
-    return "border border-blue-400/35 bg-transparent";
+    return props.preview
+      ? "border-transparent bg-transparent"
+      : "border border-blue-400/35 bg-transparent";
   }
   if (NO_PANEL_BG_TYPES.has(props.component.type)) return "border-transparent bg-transparent";
   if (SELF_CHROME_TYPES.has(props.component.type)) {
