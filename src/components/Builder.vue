@@ -1,6 +1,60 @@
 <template>
-  <div class="box-border h-[100dvh] w-full overflow-hidden bg-slate-950 p-3 text-slate-200">
-    <div class="grid h-full w-full min-w-0 grid-cols-[minmax(240px,280px)_minmax(0,1fr)_minmax(260px,320px)] gap-3">
+  <div class="box-border h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-200 flex flex-col">
+    <!-- ═══ Top Header Bar ═══ -->
+    <header class="flex items-center justify-between border-b border-slate-700 bg-slate-900 px-4 py-2.5 shrink-0">
+      <div class="flex items-center gap-4">
+        <span class="text-sm font-semibold text-slate-100">No-Code Builder</span>
+        <div class="h-5 w-px bg-slate-700" />
+        <span class="text-[10px] text-slate-500">{{ COLS }}-col · {{ CELL_SIZE }}px grid · {{ state.components.length }} components</span>
+        <div class="h-5 w-px bg-slate-700" />
+        <button class="rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors" :class="previewMode ? 'border-blue-400 bg-blue-500/20 text-blue-200' : 'border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-slate-100'" @click="previewMode = !previewMode">
+          {{ previewMode ? "Exit Preview" : "Preview" }}
+        </button>
+        <button class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="showExport = true">View JSON</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- Template Selector -->
+        <select v-model="selectedTemplate" class="h-8 rounded-md border border-slate-600 bg-slate-800 px-2 text-[11px] text-slate-200 focus:border-blue-400 focus:outline-none" @change="onTemplateSelect">
+          <option value="">— Load Template —</option>
+          <option v-for="t in DEMO_TEMPLATES" :key="t.key" :value="t.key">{{ t.label }}</option>
+        </select>
+        <div class="h-5 w-px bg-slate-700" />
+        <!-- Import JSON -->
+        <button class="flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="onImportJson" title="Import JSON file">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Import
+        </button>
+        <!-- Export JSON -->
+        <button class="flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="onExportJson" title="Export as JSON file">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export
+        </button>
+        <div class="h-5 w-px bg-slate-700" />
+        <!-- Save -->
+        <button class="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-500" @click="onSave" title="Save to browser storage">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+          Save
+        </button>
+        <!-- Clear -->
+        <button class="flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-[11px] font-medium text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200" @click="onClear" title="Clear canvas and reset all data">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Clear
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══ Toast Notification ═══ -->
+    <Transition name="toast-slide">
+      <div v-if="toastVisible" class="fixed top-14 right-4 z-50 flex items-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-medium shadow-lg backdrop-blur-sm" :class="toastType === 'success' ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200' : toastType === 'error' ? 'border-red-500/30 bg-red-500/15 text-red-200' : 'border-blue-500/30 bg-blue-500/15 text-blue-200'">
+        <svg v-if="toastType === 'success'" class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        <svg v-else-if="toastType === 'error'" class="h-4 w-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg v-else class="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        {{ toastMessage }}
+      </div>
+    </Transition>
+
+    <!-- ═══ Main Content Area ═══ -->
+    <div class="grid flex-1 min-h-0 w-full min-w-0 grid-cols-[minmax(240px,280px)_minmax(0,1fr)_minmax(260px,320px)] gap-3 p-3">
       <!-- ═══ Left Panel ═══ -->
       <aside class="flex flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
         <div class="grid grid-cols-4 gap-0.5 border-b border-slate-700 p-1.5">
@@ -140,19 +194,7 @@
 
       <!-- ═══ Canvas ═══ -->
       <main class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
-        <header class="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-          <div>
-            <h1 class="text-base font-semibold text-slate-100">{{ state.screenName }}</h1>
-            <p class="text-xs text-slate-400">{{ COLS }}-col · {{ CELL_SIZE }}px square grid</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <button class="rounded-md border px-3 py-1.5 text-xs transition-colors" :class="previewMode ? 'border-blue-400 bg-blue-500/20 text-blue-200' : 'border-slate-600 text-slate-200 hover:bg-slate-800'" @click="previewMode = !previewMode">
-              {{ previewMode ? "Exit Preview" : "Preview" }}
-            </button>
-            <button class="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-900 hover:bg-white" @click="showExport = true">JSON Export</button>
-          </div>
-        </header>
-        <div class="relative flex-1 overflow-auto bg-slate-950 p-4" @click="deselectAll()">
+        <div class="relative flex-1 overflow-auto bg-slate-950" @click="deselectAll()">
           <div class="mx-auto" :style="{ width: `${CANVAS_WIDTH}px` }">
             <div class="relative rounded-xl border border-slate-700 bg-slate-900" :class="previewMode ? '' : 'canvas-grid'" :style="{ height: canvasRows * CELL_SIZE + 'px' }" @click.stop="deselectAll()" @dragover.prevent @drop.prevent="onCanvasDrop">
               <BuilderNode v-for="comp in rootComponents" :key="comp.id" :component="comp" :cols="COLS" :rows="canvasRows" @open-data-preview="onOpenDataPreview" />
@@ -423,7 +465,11 @@
       <div class="w-full max-w-4xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
         <div class="flex items-center justify-between border-b border-slate-700 px-4 py-3">
           <h3 class="text-sm font-semibold text-slate-100">Builder JSON Export</h3>
-          <button class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800" @click="showExport = false">Close</button>
+          <div class="flex items-center gap-2">
+            <button class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800" @click="copyJsonExport">Copy</button>
+            <button class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800" @click="onExportJson">Download</button>
+            <button class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800" @click="showExport = false">Close</button>
+          </div>
         </div>
         <pre class="max-h-[70vh] overflow-auto bg-slate-950 p-4 text-xs text-emerald-300">{{ jsonExport }}</pre>
       </div>
@@ -435,6 +481,7 @@
 import { computed, ref, h, watch, provide } from "vue";
 import BuilderNode from "./BuilderNode.vue";
 import { COMPONENT_CATALOG, COLS, CANVAS_WIDTH, CELL_SIZE, MOCK_API_DATA, CONTAINER_TYPES } from "../data/componentCatalog";
+import { DEMO_TEMPLATES } from "../data/demoTemplates";
 import { useBuilderStore } from "../stores/builderStore";
 import { PREVIEW_CTX } from "../runtime/previewContext";
 import { getPath } from "../runtime/runtimeEngine";
@@ -447,10 +494,71 @@ const {
   runtimeVars, fieldValues, loadingByComponent,
   addLogicVariable, removeLogicVariable, updateLogicVariable,
   addOrderEvent, removeOrderEvent,
-  updateGridPosRect, updateComponentParent
+  updateGridPosRect, updateComponentParent,
+  saveToLocalStorage,
+  clearAll, exportToFile, importFromFile, loadTemplate
 } = store;
 
 provide(PREVIEW_CTX, { runPreviewTrigger, runtimeVars, fieldValues, loadingByComponent });
+
+/* ─── Toast ─── */
+const toastVisible = ref(false);
+const toastMessage = ref("");
+const toastType = ref("success");
+let toastTimer = null;
+
+function showToast(message, type = "success", duration = 2500) {
+  toastMessage.value = message;
+  toastType.value = type;
+  toastVisible.value = true;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastVisible.value = false; }, duration);
+}
+
+/* ─── Persistence actions ─── */
+function onSave() {
+  const ok = saveToLocalStorage();
+  showToast(ok ? "Saved successfully!" : "Save failed!", ok ? "success" : "error");
+}
+
+function onClear() {
+  if (!confirm("Are you sure you want to clear the canvas and reset all data? This cannot be undone.")) return;
+  clearAll();
+  selectedTemplate.value = "";
+  showToast("Canvas cleared.", "info");
+}
+
+async function onImportJson() {
+  const ok = await importFromFile();
+  showToast(ok ? "JSON imported successfully!" : "Import failed — invalid file.", ok ? "success" : "error");
+}
+
+function onExportJson() {
+  exportToFile();
+  showToast("JSON file downloaded!", "success");
+}
+
+/* ─── Template selector ─── */
+const selectedTemplate = ref("");
+
+function onTemplateSelect() {
+  if (!selectedTemplate.value) return;
+  const tpl = DEMO_TEMPLATES.find((t) => t.key === selectedTemplate.value);
+  if (!tpl) return;
+  if (state.components.length > 0 && !confirm(`Load template "${tpl.label}"? Current workspace will be replaced.`)) {
+    selectedTemplate.value = "";
+    return;
+  }
+  const ok = loadTemplate(tpl.data);
+  showToast(ok ? `Template "${tpl.label}" loaded!` : "Template load failed.", ok ? "success" : "error");
+}
+
+function copyJsonExport() {
+  navigator.clipboard?.writeText(jsonExport.value).then(
+    () => showToast("JSON copied to clipboard!", "success"),
+    () => showToast("Copy failed.", "error")
+  );
+}
 
 /* ─── Left Tabs ─── */
 const leftTabs = [
@@ -664,32 +772,8 @@ const dataPreviewViewMode = ref("json");
 const expandedDataPaths = ref(new Set(["apiData", "state"]));
 
 const jsonExport = computed(() => {
-  const exportData = {
-    _meta: {
-      version: "1.0.0",
-      schema: "no-code-ui-builder",
-      exportedAt: new Date().toISOString(),
-      gridConfig: { cellSize: CELL_SIZE, cols: COLS, canvasWidth: CANVAS_WIDTH }
-    },
-    screenId: state.screenName.toLowerCase().replace(/\s+/g, "_"),
-    screenName: state.screenName,
-    logic: JSON.parse(JSON.stringify(state.logic)),
-    components: state.components.map((c) => ({
-      id: c.id,
-      compId: c.compId,
-      parentId: c.parentId,
-      type: c.type,
-      layout: { ...c.layout },
-      props: JSON.parse(JSON.stringify(c.props)),
-      _binding: {
-        fieldId: c.props.fieldId,
-        dataPath: c.props.dataPath || c.props.dataSourcePath || null,
-        valuePath: c.props.valuePath || null,
-        params: c.props.params || null
-      }
-    }))
-  };
-  return JSON.stringify(exportData, null, 2);
+  const data = store.serializeState();
+  return JSON.stringify(data, null, 2);
 });
 
 const nodeTreeItems = computed(() => {
@@ -980,5 +1064,21 @@ const FieldCheck = {
     linear-gradient(to right, rgba(100, 116, 139, 0.15) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(100, 116, 139, 0.15) 1px, transparent 1px);
   background-size: 10px 10px;
+}
+
+/* Toast animation */
+.toast-slide-enter-active {
+  transition: all 0.3s ease-out;
+}
+.toast-slide-leave-active {
+  transition: all 0.25s ease-in;
+}
+.toast-slide-enter-from {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.95);
+}
+.toast-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
 }
 </style>

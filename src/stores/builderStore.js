@@ -1,9 +1,11 @@
 import { reactive, ref, computed } from "vue";
-import { COMPONENT_CATALOG, COLS, CELL_SIZE, DEFAULT_CONTAINER_BG } from "../data/componentCatalog";
+import { COMPONENT_CATALOG, COLS, CELL_SIZE, CANVAS_WIDTH, DEFAULT_CONTAINER_BG } from "../data/componentCatalog";
 import { parseInitialValue, runActionChain } from "../runtime/runtimeEngine";
 
 let uid = 1;
 let logicUid = 1;
+
+const STORAGE_KEY = "nocode_builder_save";
 
 function newCompUuid() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -117,188 +119,12 @@ function ensureComponentSchema(comp) {
 }
 
 function init() {
-  const W = 40;
-  const P = 6;
-  const IW = 38;
-  const HW = 18;
-  const HX = 20;
-
-  /* ── 1. Page Header Banner ── */
-  const headerBox = createComponent("container", null, { x: 0, y: 0, w: W, h: 7 }, {
-    showBorder: true, showBackground: true, padding: P, bgColor: "#0f172a", fieldId: "section_header"
-  });
-  const titleLbl = createComponent("label", headerBox.id, { x: 0, y: 0, w: 30, h: 3 }, {
-    text: "Telecom Customer Management", preset: "h2", color: "#f1f5f9", fontWeight: "bold", fieldId: "title_main"
-  });
-  const statusBadge = createComponent("status-badge", headerBox.id, { x: 30, y: 0, w: 8, h: 3 }, {
-    status: "Online", tone: "success", fieldId: "system_status", hAlign: "right", vAlign: "middle"
-  });
-  const subtitleLbl = createComponent("label", headerBox.id, { x: 0, y: 3, w: IW, h: 2 }, {
-    text: "Search and manage customer accounts, plans, and billing", preset: "small", color: "#64748b", fontWeight: "normal", fieldId: "subtitle_main"
-  });
-
-  /* ── 2. Search Section ── */
-  const searchBox = createComponent("container", null, { x: 0, y: 8, w: W, h: 23 }, {
-    showBorder: true, showBackground: true, padding: P, bgColor: DEFAULT_CONTAINER_BG, fieldId: "section_search"
-  });
-  const lblSearch = createComponent("label", searchBox.id, { x: 0, y: 0, w: IW, h: 3 }, {
-    text: "Customer Search", preset: "h3", color: "#f1f5f9", icon: "user", fieldId: "sec_search_title"
-  });
-  const inputName = createComponent("text-input", searchBox.id, { x: 0, y: 3, w: HW, h: 4 }, {
-    label: "Customer Name", fieldId: "customer_name", placeholder: "Enter customer name"
-  });
-  const inputPhone = createComponent("text-input", searchBox.id, { x: HX, y: 3, w: HW, h: 4 }, {
-    label: "Phone Number", fieldId: "customer_phone", mask: "000-0000-0000", inputType: "tel"
-  });
-  const comboPlan = createComponent("combo-box", searchBox.id, { x: 0, y: 8, w: HW, h: 4 }, {
-    options: "5G Premium, 5G Standard, LTE Basic, LTE Plus", fieldId: "plan_select", label: "Plan Type"
-  });
-  const radioType = createComponent("radio-group", searchBox.id, { x: HX, y: 8, w: HW, h: 4 }, {
-    options: "Individual, Corporate, Family", fieldId: "customer_type", label: "Customer Type"
-  });
-  const checkboxServices = createComponent("checkbox-group", searchBox.id, { x: 0, y: 13, w: HW, h: 4 }, {
-    options: "5G, VoLTE, Roaming, Data Plus", fieldId: "service_options", label: "Additional Services"
-  });
-  const searchBtn = createComponent("action-button", searchBox.id, { x: 0, y: 18, w: 12, h: 3 }, {
-    text: "Search", actionType: "api-call", icon: "search", colorPreset: "primary",
-    params: "customer_name:$customer_name.value, phone:$customer_phone.value",
-    fieldId: "btn_search"
-  });
-  const resetBtn = createComponent("action-button", searchBox.id, { x: 13, y: 18, w: 12, h: 3 }, {
-    text: "Reset", actionType: "navigate", icon: "refresh", colorPreset: "secondary",
-    fieldId: "btn_reset"
-  });
-
-  /* ── 3. Customer Info Dashboard ── */
-  const infoBox = createComponent("container", null, { x: 0, y: 32, w: W, h: 15 }, {
-    showBorder: true, showBackground: true, padding: P, bgColor: DEFAULT_CONTAINER_BG, fieldId: "section_info"
-  });
-  const lblInfo = createComponent("label", infoBox.id, { x: 0, y: 0, w: 26, h: 3 }, {
-    text: "Customer Information", preset: "h3", color: "#f1f5f9", icon: "folder", fieldId: "sec_info_title"
-  });
-  const badgeActive = createComponent("status-badge", infoBox.id, { x: 30, y: 0, w: 8, h: 3 }, {
-    status: "Active", tone: "success", fieldId: "cust_status_badge", hAlign: "right", vAlign: "middle"
-  });
-  const factPlan = createComponent("data-fact", infoBox.id, { x: 0, y: 4, w: HW, h: 4 }, {
-    label: "Current Plan", fieldId: "cust_plan", dataPath: "@apiData.user.plan"
-  });
-  const factBalance = createComponent("data-fact", infoBox.id, { x: HX, y: 4, w: HW, h: 4 }, {
-    label: "Balance", fieldId: "balance", dataPath: "@apiData.user.balance", value: "89,000"
-  });
-  const factAccId = createComponent("data-fact", infoBox.id, { x: 0, y: 9, w: HW, h: 4 }, {
-    label: "Account ID", fieldId: "acc_id", dataPath: "@apiData.account.id"
-  });
-  const factCredit = createComponent("data-fact", infoBox.id, { x: HX, y: 9, w: HW, h: 4 }, {
-    label: "Credit Rating", fieldId: "credit", dataPath: "@apiData.account.credit"
-  });
-
-  /* ── 4. Additional Info ── */
-  const extraBox = createComponent("container", null, { x: 0, y: 48, w: W, h: 9 }, {
-    showBorder: true, showBackground: true, padding: P, bgColor: DEFAULT_CONTAINER_BG, fieldId: "section_extra"
-  });
-  const lblExtra = createComponent("label", extraBox.id, { x: 0, y: 0, w: IW, h: 3 }, {
-    text: "Additional Info", preset: "h3", color: "#f1f5f9", fieldId: "sec_extra_title"
-  });
-  const datePicker = createComponent("date-picker", extraBox.id, { x: 0, y: 3, w: HW, h: 4 }, {
-    fieldId: "join_date", label: "Join Date", placeholder: "YYYY-MM-DD", dateFormat: "YYYY-MM-DD"
-  });
-  const factDueDate = createComponent("data-fact", extraBox.id, { x: HX, y: 3, w: HW, h: 4 }, {
-    label: "Due Date", fieldId: "due_date", dataPath: "@apiData.account.dueDate"
-  });
-
-  /* ── 5. Divider ── */
-  const divider1 = createComponent("divider", null, { x: 0, y: 58, w: W, h: 1 }, {
-    color: "#334155", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle", fieldId: "divider_1"
-  });
-
-  /* ── 6. Customer List (Data Grid) ── */
-  const gridTitle = createComponent("label", null, { x: 0, y: 60, w: 30, h: 3 }, {
-    text: "Customer List", preset: "h3", color: "#f1f5f9", fontWeight: "bold", icon: "list", fieldId: "grid_title"
-  });
-  const dataGrid = createComponent("data-grid", null, { x: 0, y: 63, w: W, h: 14 }, {
-    columns: [
-      { header: "Name", field: "name" },
-      { header: "Status", field: "status" },
-      { header: "Plan", field: "plan" },
-      { header: "Amount", field: "amount" }
-    ],
-    selectionMode: "single",
-    isEditable: false,
-    allowAddRow: false,
-    allowDeleteRow: false,
-    isReadOnly: true,
-    pagination: true,
-    pageSize: 10,
-    dataSourcePath: "@apiData.response.customers",
-    fieldId: "customer_grid"
-  });
-
-  /* ── 7. Divider ── */
-  const divider2 = createComponent("divider", null, { x: 0, y: 78, w: W, h: 1 }, {
-    color: "#334155", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle", fieldId: "divider_2"
-  });
-
-  /* ── 8. Payment Accordion ── */
-  const accordion = createComponent("accordion", null, { x: 0, y: 80, w: W, h: 16 }, {
-    title: "Payment & Billing",
-    panels: "Payment Method, Billing History, Auto-Pay Settings",
-    activePanel: "Payment Method",
-    fieldId: "payment_accordion"
-  });
-
-  /* ── 9. Divider ── */
-  const divider3 = createComponent("divider", null, { x: 0, y: 97, w: W, h: 1 }, {
-    color: "#334155", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle", fieldId: "divider_3"
-  });
-
-  /* ── 10. Available Plans ── */
-  const plansTitle = createComponent("label", null, { x: 0, y: 99, w: 30, h: 3 }, {
-    text: "Available Plans", preset: "h3", color: "#f1f5f9", fontWeight: "bold", icon: "star", fieldId: "plans_title"
-  });
-  const cardRepeater = createComponent("card-list-repeater", null, { x: 0, y: 102, w: W, h: 18 }, {
-    dataSourcePath: "@apiData.response.products",
-    cardTitle: "5G Premium",
-    cardBadge: "5G",
-    cardPrice: "89,000",
-    cardPriceUnit: "Won/Month",
-    cardDescription: "High-speed 5G data plan with unlimited streaming and premium content access.",
-    cardFacts: "Data: 210GB, Voice: Unlimited, SMS: Unlimited, Tethering: 30GB",
-    cardButtonText: "Select Plan",
-    accentColor: "#3b82f6",
-    cardWidth: 240,
-    fieldId: "plan_cards"
-  });
-
-  /* ── 11. Submit ── */
-  const submitBtn = createComponent("action-button", null, { x: 0, y: 121, w: W, h: 3 }, {
-    text: "Submit Application", actionType: "submit", icon: "check", colorPreset: "primary",
-    customBgColor: "#3b82f6", customTextColor: "#ffffff",
-    fieldId: "btn_submit"
-  });
-
-  state.components = [
-    headerBox, titleLbl, statusBadge, subtitleLbl,
-    searchBox, lblSearch, inputName, inputPhone, comboPlan, radioType, checkboxServices, searchBtn, resetBtn,
-    infoBox, lblInfo, badgeActive, factPlan, factBalance, factAccId, factCredit,
-    extraBox, lblExtra, datePicker, factDueDate,
-    divider1, gridTitle, dataGrid,
-    divider2, accordion,
-    divider3, plansTitle, cardRepeater,
-    submitBtn
-  ];
-  for (const c of state.components) ensureComponentSchema(c);
-
-  state.logic.orderEvents = [
-    {
-      id: `oe_${logicUid++}`,
-      eventCode: "CUST_LOOKUP",
-      name: "Customer Lookup",
-      requestDtoJson: '{\n  "customer_name": "",\n  "phone": ""\n}',
-      requestMapping: "customer_name:$customer_name.value, phone:$customer_phone.value",
-      onSuccessVariable: "",
-      onSuccessPath: ""
-    }
-  ];
+  /* Start with an empty canvas */
+  state.screenName = "Canvas";
+  state.components = [];
+  state.logic.variables = [];
+  state.logic.orderEvents = [];
+  state.logic.activeScreen = "default";
 }
 
 function getChildren(parentId) {
@@ -537,6 +363,180 @@ function typeLabel(type) {
   return findDescriptor(type)?.label ?? labelFromType(type);
 }
 
+/* ═══════════════════════════════════════════════
+ * Serialization / Deserialization / Persistence
+ * ═══════════════════════════════════════════════ */
+
+/** Serialize the full builder state into a portable JSON object */
+function serializeState() {
+  return {
+    screenInfo: {
+      name: state.screenName,
+      version: "1.0"
+    },
+    logic: JSON.parse(JSON.stringify(state.logic)),
+    components: state.components.map((c) => ({
+      id: c.id,
+      compId: c.compId,
+      type: c.type,
+      parentId: c.parentId,
+      layout: { ...c.layout },
+      props: JSON.parse(JSON.stringify(c.props))
+    }))
+  };
+}
+
+/** Hydrate builder state from a serialized JSON object */
+function hydrateState(json) {
+  if (!json || typeof json !== "object") return false;
+  try {
+    /* Screen info */
+    if (json.screenInfo?.name) {
+      state.screenName = json.screenInfo.name;
+    } else if (json.screenName) {
+      state.screenName = json.screenName;
+    }
+
+    /* Logic: variables + orderEvents */
+    if (json.logic) {
+      state.logic.variables = Array.isArray(json.logic.variables)
+        ? JSON.parse(JSON.stringify(json.logic.variables))
+        : [];
+      state.logic.orderEvents = Array.isArray(json.logic.orderEvents)
+        ? JSON.parse(JSON.stringify(json.logic.orderEvents))
+        : [];
+      state.logic.activeScreen = json.logic.activeScreen || "default";
+    }
+
+    /* Components */
+    if (Array.isArray(json.components)) {
+      const comps = JSON.parse(JSON.stringify(json.components));
+      for (const c of comps) ensureComponentSchema(c);
+      state.components = comps;
+    }
+
+    /* Recalculate internal counters to avoid id collisions */
+    let maxCmpNum = 0;
+    let maxLogicNum = 0;
+    for (const c of state.components) {
+      const m = String(c.id).match(/\d+/);
+      if (m) maxCmpNum = Math.max(maxCmpNum, Number(m[0]));
+    }
+    for (const v of state.logic.variables) {
+      const m = String(v.id).match(/\d+/);
+      if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
+    }
+    for (const e of state.logic.orderEvents) {
+      const m = String(e.id).match(/\d+/);
+      if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
+    }
+    uid = maxCmpNum + 1;
+    logicUid = maxLogicNum + 1;
+
+    /* Reset runtime */
+    for (const k of Object.keys(runtimeVars)) delete runtimeVars[k];
+    for (const k of Object.keys(fieldValues)) delete fieldValues[k];
+    for (const k of Object.keys(loadingByComponent)) delete loadingByComponent[k];
+    rebuildRuntimeVars();
+    seedFieldValues();
+    selectedId.value = null;
+    previewMode.value = false;
+
+    return true;
+  } catch (err) {
+    console.error("[Builder] Hydration failed:", err);
+    return false;
+  }
+}
+
+/* ─── LocalStorage Persistence ─── */
+function saveToLocalStorage() {
+  try {
+    const data = serializeState();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch (err) {
+    console.error("[Builder] Save failed:", err);
+    return false;
+  }
+}
+
+function loadFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const json = JSON.parse(raw);
+    return hydrateState(json);
+  } catch (err) {
+    console.error("[Builder] Load failed:", err);
+    return false;
+  }
+}
+
+function hasSavedData() {
+  return !!localStorage.getItem(STORAGE_KEY);
+}
+
+/* ─── Clear / Reset ─── */
+function clearAll() {
+  state.screenName = "Canvas";
+  state.components = [];
+  state.logic.variables = [];
+  state.logic.orderEvents = [];
+  state.logic.activeScreen = "default";
+  uid = 1;
+  logicUid = 1;
+  for (const k of Object.keys(runtimeVars)) delete runtimeVars[k];
+  for (const k of Object.keys(fieldValues)) delete fieldValues[k];
+  for (const k of Object.keys(loadingByComponent)) delete loadingByComponent[k];
+  selectedId.value = null;
+  previewMode.value = false;
+}
+
+/* ─── File Export / Import ─── */
+function exportToFile() {
+  const data = serializeState();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(state.screenName || "screen").replace(/\s+/g, "_").toLowerCase()}_export.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importFromFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) { resolve(false); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const json = JSON.parse(reader.result);
+          resolve(hydrateState(json));
+        } catch {
+          resolve(false);
+        }
+      };
+      reader.onerror = () => resolve(false);
+      reader.readAsText(file);
+    };
+    input.click();
+  });
+}
+
+/* ─── Load Template ─── */
+function loadTemplate(templateData) {
+  if (!templateData) return false;
+  return hydrateState(templateData);
+}
+
 init();
 
 export function useBuilderStore() {
@@ -570,6 +570,16 @@ export function useBuilderStore() {
     removeOrderEvent,
     updateOrderEvent,
     updateGridPosRect,
-    updateComponentParent
+    updateComponentParent,
+    /* Persistence & Serialization */
+    serializeState,
+    hydrateState,
+    saveToLocalStorage,
+    loadFromLocalStorage,
+    hasSavedData,
+    clearAll,
+    exportToFile,
+    importFromFile,
+    loadTemplate
   };
 }
