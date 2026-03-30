@@ -266,12 +266,21 @@ function onPointerDown(e) {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     if (moved) {
-      store.updateLayout(
-        props.component.id,
-        { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
-        props.cols,
-        props.rows
-      );
+      if (ghostOverlaps.value) {
+        // 겹치는 위치에 놓으면 원래 위치로 복원
+        ghostX.value = orig.x;
+        ghostY.value = orig.y;
+        ghostW.value = orig.w;
+        ghostH.value = orig.h;
+        store.cancelMove();
+      } else {
+        store.updateLayout(
+          props.component.id,
+          { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
+          props.cols,
+          props.rows
+        );
+      }
     }
     isDragging.value = false;
   }
@@ -330,12 +339,20 @@ function onResizeStart(e, handle) {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     if (isResizing.value) {
-      store.updateLayout(
-        props.component.id,
-        { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
-        props.cols,
-        props.rows
-      );
+      if (ghostOverlaps.value) {
+        // 겹치는 크기로 조정하면 원래 크기/위치로 복원
+        ghostX.value = orig.x;
+        ghostY.value = orig.y;
+        ghostW.value = orig.w;
+        ghostH.value = orig.h;
+      } else {
+        store.updateLayout(
+          props.component.id,
+          { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
+          props.cols,
+          props.rows
+        );
+      }
     }
     isResizing.value = false;
   }

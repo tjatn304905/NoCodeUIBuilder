@@ -47,7 +47,7 @@ const rootComponents = computed(() =>
   state.components.filter((c) => c.parentId === null)
 );
 
-const MIN_CANVAS_ROWS = 40;
+const MIN_CANVAS_ROWS = 80;
 
 const canvasRows = computed(() => {
   let maxBottom = MIN_CANVAS_ROWS;
@@ -156,6 +156,12 @@ function recordBeforeMove() {
   if (_isUndoRedoing) return;
   _pushCurrentState();
   _moveSnapshotPending = true;
+}
+
+/** Cancel a pending move/resize (e.g. dropped on overlapping position).
+ *  Clears the pending flag without pushing an "after" state. */
+function cancelMove() {
+  _moveSnapshotPending = false;
 }
 
 /** Public helper: push the current state as a history entry.
@@ -730,6 +736,7 @@ export function useBuilderStore() {
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     recordBeforeMove,
+    cancelMove,
     commitSnapshot
   };
 }

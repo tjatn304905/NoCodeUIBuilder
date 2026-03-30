@@ -1,4 +1,4 @@
-export const CELL_SIZE = 20;
+export const CELL_SIZE = 10;
 export const CANVAS_WIDTH = 1280;
 export const COLS = CANVAS_WIDTH / CELL_SIZE;
 
@@ -48,7 +48,7 @@ export const COMPONENT_CATALOG = [
       {
         type: "container",
         label: "Container (Section)",
-        defaultSize: { w: 32, h: 16 },
+        defaultSize: { w: 64, h: 32 },
         defaultProps: {
           showBorder: true,
           showBackground: true,
@@ -59,7 +59,7 @@ export const COMPONENT_CATALOG = [
       {
         type: "accordion",
         label: "Accordion",
-        defaultSize: { w: 32, h: 16 },
+        defaultSize: { w: 64, h: 32 },
         defaultProps: {
           title: "Payment Method",
           panels: "Cash, Card, Installment",
@@ -74,31 +74,31 @@ export const COMPONENT_CATALOG = [
       {
         type: "text-input",
         label: "Base Input (Masked)",
-        defaultSize: { w: 16, h: 4 },
+        defaultSize: { w: 32, h: 8 },
         defaultProps: { placeholder: "Enter value", maxLength: 120, inputType: "text", mask: "" }
       },
       {
         type: "combo-box",
         label: "Combo Box",
-        defaultSize: { w: 16, h: 4 },
+        defaultSize: { w: 32, h: 8 },
         defaultProps: { options: "Plan A, Plan B, Plan C" }
       },
       {
         type: "radio-group",
         label: "Radio Group",
-        defaultSize: { w: 24, h: 4 },
+        defaultSize: { w: 48, h: 8 },
         defaultProps: { options: "Yes, No" }
       },
       {
         type: "checkbox-group",
         label: "Checkbox Group",
-        defaultSize: { w: 24, h: 4 },
+        defaultSize: { w: 48, h: 8 },
         defaultProps: { options: "Option A, Option B, Option C" }
       },
       {
         type: "date-picker",
         label: "Date Picker",
-        defaultSize: { w: 16, h: 4 },
+        defaultSize: { w: 32, h: 8 },
         defaultProps: { placeholder: "YYYY-MM-DD", dateFormat: "YYYY-MM-DD" }
       }
     ]
@@ -109,7 +109,7 @@ export const COMPONENT_CATALOG = [
       {
         type: "label",
         label: "Label",
-        defaultSize: { w: 24, h: 3 },
+        defaultSize: { w: 48, h: 6 },
         defaultProps: {
           text: "Title or description",
           preset: "body",
@@ -122,25 +122,25 @@ export const COMPONENT_CATALOG = [
       {
         type: "data-fact",
         label: "Data Fact",
-        defaultSize: { w: 16, h: 4 },
+        defaultSize: { w: 32, h: 8 },
         defaultProps: { value: "N/A", displayMode: "side-by-side", dataPath: "", valuePath: "", bgColor: DEFAULT_DATA_FACT_BG }
       },
       {
         type: "status-badge",
         label: "Status Badge",
-        defaultSize: { w: 12, h: 2 },
+        defaultSize: { w: 24, h: 4 },
         defaultProps: { status: "Active", tone: "success" }
       },
       {
         type: "divider",
         label: "Divider",
-        defaultSize: { w: 32, h: 2 },
+        defaultSize: { w: 64, h: 2 },
         defaultProps: { color: "#cbd5e1", orientation: "horizontal", thickness: 1, hAlign: "center", vAlign: "middle" }
       },
       {
         type: "data-grid",
         label: "Data Grid",
-        defaultSize: { w: 48, h: 14 },
+        defaultSize: { w: 96, h: 28 },
         defaultProps: {
           columns: [
             { header: "Name", field: "name" },
@@ -161,7 +161,7 @@ export const COMPONENT_CATALOG = [
       {
         type: "card-list-repeater",
         label: "Card List Repeater",
-        defaultSize: { w: 20, h: 22 },
+        defaultSize: { w: 40, h: 44 },
         defaultProps: {
           dataSourcePath: "@apiData.response.products",
           cardTitle: "5G Standard",
@@ -184,7 +184,7 @@ export const COMPONENT_CATALOG = [
       {
         type: "action-button",
         label: "Action Button",
-        defaultSize: { w: 12, h: 4 },
+        defaultSize: { w: 24, h: 8 },
         defaultProps: {
           text: "Submit",
           actionType: "submit",
