@@ -426,14 +426,13 @@ const dataFactLayoutClass = computed(() => {
   const p = props.component.props || {};
   const a = (p.hAlign ?? p.alignment) ?? "left";
   const v = (p.vAlign ?? p.valign) ?? "top";
-  const justifyH = { left: "justify-start", center: "justify-center", right: "justify-end" };
-  const itemsV = { top: "items-start", middle: "items-center", bottom: "items-end" };
   const itemsH = { left: "items-start", center: "items-center", right: "items-end" };
   const justifyV = { top: "justify-start", middle: "justify-center", bottom: "justify-end" };
+  const { justify, items } = cellHVParts();
   if (p.displayMode === "stacked") {
     return `flex w-full min-h-0 flex-col gap-0.5 ${itemsH[a] || itemsH.left} ${justifyV[v] || justifyV.top}`;
   }
-  return `flex w-full min-h-0 flex-row flex-wrap items-baseline gap-2 ${justifyH[a] || justifyH.left} ${itemsV[v] || itemsV.top}`;
+  return `flex w-full min-h-0 flex-row flex-wrap items-baseline gap-2 ${justify} ${items}`;
 });
 
 function resolveDataPath(path) {
@@ -469,26 +468,19 @@ function onPreviewRun(trigger, e) {
   previewCtx.runPreviewTrigger(props.component.id, trigger);
 }
 
-function onTextPreviewInput(e) {
+/** Shared handler for text/combo/date inputs: update field value then fire onChange. */
+function onPreviewFieldInput(value) {
   if (!props.preview || !previewCtx) return;
-  setPreviewField(e.target.value);
+  setPreviewField(value);
   onPreviewRun("onChange");
 }
 
-function onComboPreviewChange(e) {
-  if (!props.preview || !previewCtx) return;
-  setPreviewField(e.target.value);
-  onPreviewRun("onChange");
-}
+function onTextPreviewInput(e) { onPreviewFieldInput(e.target.value); }
+function onComboPreviewChange(e) { onPreviewFieldInput(e.target.value); }
+function onDatePreviewInput(e) { onPreviewFieldInput(e.target.value); }
 
 function onCheckboxPreviewChange() {
   if (!props.preview || !previewCtx) return;
-  onPreviewRun("onChange");
-}
-
-function onDatePreviewInput(e) {
-  if (!props.preview || !previewCtx) return;
-  setPreviewField(e.target.value);
   onPreviewRun("onChange");
 }
 
@@ -496,11 +488,7 @@ function onDateInputClick(e) {
   if (!props.preview || isLogicReadonly.value) return;
   const el = e.currentTarget;
   if (typeof el.showPicker === "function") {
-    try {
-      el.showPicker();
-    } catch {
-      /* secure context / browser policy */
-    }
+    try { el.showPicker(); } catch { /* secure context / browser policy */ }
   }
 }
 

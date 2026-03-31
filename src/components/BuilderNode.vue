@@ -126,10 +126,10 @@ const previewMode = store.previewMode;
 
 const HANDLES = ["n", "s", "e", "w", "nw", "ne", "sw", "se"];
 const handleClasses = {
-  n: "left-1/2 -top-1 h-2 w-4 -translate-x-1/2 cursor-n-resize rounded-sm border border-blue-400",
-  s: "left-1/2 -bottom-1 h-2 w-4 -translate-x-1/2 cursor-s-resize rounded-sm border border-blue-400",
-  e: "-right-1 top-1/2 h-4 w-2 -translate-y-1/2 cursor-e-resize rounded-sm border border-blue-400",
-  w: "-left-1 top-1/2 h-4 w-2 -translate-y-1/2 cursor-w-resize rounded-sm border border-blue-400",
+  n:  "left-1/2 -top-1 h-2 w-4 -translate-x-1/2 cursor-n-resize rounded-sm border border-blue-400",
+  s:  "left-1/2 -bottom-1 h-2 w-4 -translate-x-1/2 cursor-s-resize rounded-sm border border-blue-400",
+  e:  "-right-1 top-1/2 h-4 w-2 -translate-y-1/2 cursor-e-resize rounded-sm border border-blue-400",
+  w:  "-left-1 top-1/2 h-4 w-2 -translate-y-1/2 cursor-w-resize rounded-sm border border-blue-400",
   nw: "-left-1 -top-1 h-2.5 w-2.5 cursor-nw-resize rounded-sm border border-blue-400",
   ne: "-right-1 -top-1 h-2.5 w-2.5 cursor-ne-resize rounded-sm border border-blue-400",
   sw: "-left-1 -bottom-1 h-2.5 w-2.5 cursor-sw-resize rounded-sm border border-blue-400",
@@ -186,19 +186,14 @@ const yPx = computed(() => layout.value.y * CELL_SIZE);
 const wPx = computed(() => layout.value.w * CELL_SIZE);
 const hPx = computed(() => layout.value.h * CELL_SIZE);
 
-const nestedCols = computed(() => {
-  const contentWidth = wPx.value - 18;
-  return Math.max(1, Math.floor(contentWidth / CELL_SIZE));
-});
+const nestedCols = computed(() => Math.max(1, Math.floor((wPx.value - 18) / CELL_SIZE)));
 
 const nestedRows = computed(() => {
   const type = props.component.type;
-  // Container children must stay within inner drop zone (respect container padding).
   if (type === "container") {
     const rawPad = Number(props.component.props?.padding);
     const pad = Number.isFinite(rawPad) && rawPad >= 0 ? rawPad : 12;
-    const innerHeightPx = Math.max(CELL_SIZE, hPx.value - pad * 2);
-    return Math.max(1, Math.floor(innerHeightPx / CELL_SIZE));
+    return Math.max(1, Math.floor(Math.max(CELL_SIZE, hPx.value - pad * 2) / CELL_SIZE));
   }
   if (type === "accordion") return Math.max(1, layout.value.h - 5);
   return Math.max(1, layout.value.h - 3);
@@ -260,16 +255,30 @@ function updateFloatingToolbarPosition() {
     return;
   }
   const rect = nodeRef.value.getBoundingClientRect();
-  floatingToolbar.value = {
-    left: rect.right,
-    top: Math.max(8, rect.top - 28),
-    visible: true
-  };
+  floatingToolbar.value = { left: rect.right, top: Math.max(8, rect.top - 28), visible: true };
 }
 
 function onClickNode() {
   store.selectComponent(props.component.id);
   nextTick(updateFloatingToolbarPosition);
+}
+
+/** Commit ghost position if no overlap, otherwise restore orig. */
+function _commitOrRevertGhost(orig) {
+  if (ghostOverlaps.value) {
+    ghostX.value = orig.x;
+    ghostY.value = orig.y;
+    ghostW.value = orig.w;
+    ghostH.value = orig.h;
+    store.cancelMove();
+  } else {
+    store.updateLayout(
+      props.component.id,
+      { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
+      props.cols,
+      props.rows
+    );
+  }
 }
 
 function onPointerDown(e) {
@@ -292,11 +301,8 @@ function onPointerDown(e) {
     if (!moved) store.recordBeforeMove();
     moved = true;
     isDragging.value = true;
-
-    const rawX = orig.x * CELL_SIZE + dx;
-    const rawY = orig.y * CELL_SIZE + dy;
-    ghostX.value = Math.max(0, Math.min(props.cols - orig.w, Math.round(rawX / CELL_SIZE)));
-    ghostY.value = Math.max(0, Math.min(props.rows - orig.h, Math.round(rawY / CELL_SIZE)));
+    ghostX.value = Math.max(0, Math.min(props.cols - orig.w, Math.round((orig.x * CELL_SIZE + dx) / CELL_SIZE)));
+    ghostY.value = Math.max(0, Math.min(props.rows - orig.h, Math.round((orig.y * CELL_SIZE + dy) / CELL_SIZE)));
     ghostW.value = orig.w;
     ghostH.value = orig.h;
     updateFloatingToolbarPosition();
@@ -305,23 +311,7 @@ function onPointerDown(e) {
   function onUp() {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
-    if (moved) {
-      if (ghostOverlaps.value) {
-        // 겹치는 위치에 놓으면 원래 위치로 복원
-        ghostX.value = orig.x;
-        ghostY.value = orig.y;
-        ghostW.value = orig.w;
-        ghostH.value = orig.h;
-        store.cancelMove();
-      } else {
-        store.updateLayout(
-          props.component.id,
-          { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
-          props.cols,
-          props.rows
-        );
-      }
-    }
+    if (moved) _commitOrRevertGhost(orig);
     isDragging.value = false;
   }
 
@@ -334,33 +324,29 @@ function onResizeStart(e, handle) {
   const startX = e.clientX;
   const startY = e.clientY;
   const orig = { ...layout.value };
+  let resizeStarted = false;
 
   ghostX.value = orig.x;
   ghostY.value = orig.y;
   ghostW.value = orig.w;
   ghostH.value = orig.h;
 
-  const left = handle.includes("w");
-  const right = handle.includes("e");
-  const top = handle.includes("n");
+  const left   = handle.includes("w");
+  const right  = handle.includes("e");
+  const top    = handle.includes("n");
   const bottom = handle.includes("s");
 
-  let resizeStarted = false;
-
   function onMove(ev) {
-    if (!resizeStarted) {
-      store.recordBeforeMove();
-      resizeStarted = true;
-    }
+    if (!resizeStarted) { store.recordBeforeMove(); resizeStarted = true; }
     isResizing.value = true;
     const dCols = Math.round((ev.clientX - startX) / CELL_SIZE);
     const dRows = Math.round((ev.clientY - startY) / CELL_SIZE);
 
     let nx = orig.x, ny = orig.y, nw = orig.w, nh = orig.h;
-    if (right) nw = orig.w + dCols;
-    if (left) { nx = orig.x + dCols; nw = orig.w - dCols; }
+    if (right)  nw = orig.w + dCols;
+    if (left)  { nx = orig.x + dCols; nw = orig.w - dCols; }
     if (bottom) nh = orig.h + dRows;
-    if (top) { ny = orig.y + dRows; nh = orig.h - dRows; }
+    if (top)   { ny = orig.y + dRows; nh = orig.h - dRows; }
 
     nw = Math.max(1, nw);
     nh = Math.max(1, nh);
@@ -379,22 +365,7 @@ function onResizeStart(e, handle) {
   function onUp() {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
-    if (isResizing.value) {
-      if (ghostOverlaps.value) {
-        // 겹치는 크기로 조정하면 원래 크기/위치로 복원
-        ghostX.value = orig.x;
-        ghostY.value = orig.y;
-        ghostW.value = orig.w;
-        ghostH.value = orig.h;
-      } else {
-        store.updateLayout(
-          props.component.id,
-          { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
-          props.cols,
-          props.rows
-        );
-      }
-    }
+    if (isResizing.value) _commitOrRevertGhost(orig);
     isResizing.value = false;
   }
 
@@ -408,17 +379,12 @@ function dropIntoContainer(event) {
   if (!payload) return;
   const { type } = JSON.parse(payload);
   const rect = event.currentTarget.getBoundingClientRect();
-  const rawX = (event.clientX - rect.left) / CELL_SIZE;
-  const rawY = (event.clientY - rect.top) / CELL_SIZE;
-  store.addComponent(type, props.component.id, rawX, rawY, nestedCols.value);
+  store.addComponent(type, props.component.id, (event.clientX - rect.left) / CELL_SIZE, (event.clientY - rect.top) / CELL_SIZE, nestedCols.value);
 }
 
 watch(
   () => [isSelected.value, isDragging.value, isResizing.value, previewMode.value, layout.value.x, layout.value.y, layout.value.w, layout.value.h],
-  async () => {
-    await nextTick();
-    updateFloatingToolbarPosition();
-  },
+  async () => { await nextTick(); updateFloatingToolbarPosition(); },
   { immediate: true }
 );
 

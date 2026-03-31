@@ -8,14 +8,13 @@ let logicUid = 1;
 
 const STORAGE_KEY = "nocode_builder_save";
 
-/* ─── History manager instance ─── */
 const history = useHistoryManager();
 
 function newCompUuid() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
-  return `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`.replace(/[xy]/g, (c) => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     return (c === "x" ? r : (r & 3) | 8).toString(16);
   });
@@ -67,19 +66,10 @@ const canvasRows = computed(() => {
 
 /* ═══════════════════════════════════════
  * Snapshot helpers for Undo / Redo
- * ═══════════════════════════════════════
- *
- * Design (post-action recording):
- *   Every mutating function calls _pushCurrentState() AFTER it has
- *   made its change.  The history stack therefore always contains
- *   "result" states.  Undo/Redo simply restore one of those states.
- *
- *   _isUndoRedoing prevents the restore itself from being recorded.
- */
+ * ═══════════════════════════════════════ */
 
 let _isUndoRedoing = false;
 
-/** Deep-clone the builder state into a plain object. */
 function _takeSnapshot() {
   return JSON.parse(JSON.stringify({
     screenName: state.screenName,
@@ -88,14 +78,37 @@ function _takeSnapshot() {
   }));
 }
 
-/** Push the current (post-mutation) state to the history stack.
- *  No-op when we are inside an undo/redo restoration. */
 function _pushCurrentState() {
   if (_isUndoRedoing) return;
   history.pushState(_takeSnapshot());
 }
 
-/** Restore a snapshot into the reactive state. */
+/** Recalculate uid/logicUid from a list of components and logic items to avoid future id collisions. */
+function _recalcUids(components, variables, orderEvents) {
+  let maxCmp = 0, maxLogic = 0;
+  for (const c of components) {
+    const m = String(c.id).match(/\d+/);
+    if (m) maxCmp = Math.max(maxCmp, Number(m[0]));
+  }
+  for (const v of variables) {
+    const m = String(v.id).match(/\d+/);
+    if (m) maxLogic = Math.max(maxLogic, Number(m[0]));
+  }
+  for (const e of orderEvents) {
+    const m = String(e.id).match(/\d+/);
+    if (m) maxLogic = Math.max(maxLogic, Number(m[0]));
+  }
+  uid = maxCmp + 1;
+  logicUid = maxLogic + 1;
+}
+
+/** Clear all reactive runtime caches (runtimeVars, fieldValues, loadingByComponent). */
+function _clearRuntimeCaches() {
+  for (const k of Object.keys(runtimeVars)) delete runtimeVars[k];
+  for (const k of Object.keys(fieldValues)) delete fieldValues[k];
+  for (const k of Object.keys(loadingByComponent)) delete loadingByComponent[k];
+}
+
 function _restoreSnapshot(snap) {
   if (!snap) return;
   state.screenName = snap.screenName ?? "Canvas";
@@ -106,22 +119,7 @@ function _restoreSnapshot(snap) {
   state.logic.variables = snap.logic?.variables ?? [];
   state.logic.orderEvents = snap.logic?.orderEvents ?? [];
   state.logic.activeScreen = snap.logic?.activeScreen ?? "default";
-  // Recalculate uid/logicUid to avoid id collisions
-  let maxCmpNum = 0, maxLogicNum = 0;
-  for (const c of state.components) {
-    const m = String(c.id).match(/\d+/);
-    if (m) maxCmpNum = Math.max(maxCmpNum, Number(m[0]));
-  }
-  for (const v of state.logic.variables) {
-    const m = String(v.id).match(/\d+/);
-    if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
-  }
-  for (const e of state.logic.orderEvents) {
-    const m = String(e.id).match(/\d+/);
-    if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
-  }
-  uid = maxCmpNum + 1;
-  logicUid = maxLogicNum + 1;
+  _recalcUids(state.components, state.logic.variables, state.logic.orderEvents);
 }
 
 function undo() {
@@ -153,9 +151,8 @@ function redo() {
 }
 
 /**
- * For drag/resize: we need to record the state BEFORE the move starts,
- * so that undo returns to that state.  The actual updateLayout() at the
- * end of the drag will push the "after" state.
+ * For drag/resize: record state BEFORE the move so undo returns to it.
+ * updateLayout() at the end will push the "after" state.
  */
 let _moveSnapshotPending = false;
 function recordBeforeMove() {
@@ -616,14 +613,9 @@ function serializeStateForExport() {
 function hydrateState(json) {
   if (!json || typeof json !== "object") return false;
   try {
-    /* Screen info */
-    if (json.screenInfo?.name) {
-      state.screenName = json.screenInfo.name;
-    } else if (json.screenName) {
-      state.screenName = json.screenName;
-    }
+    if (json.screenInfo?.name) state.screenName = json.screenInfo.name;
+    else if (json.screenName) state.screenName = json.screenName;
 
-    /* Logic: variables + orderEvents */
     if (json.logic) {
       state.logic.variables = Array.isArray(json.logic.variables)
         ? JSON.parse(JSON.stringify(json.logic.variables))
@@ -634,7 +626,6 @@ function hydrateState(json) {
       state.logic.activeScreen = json.logic.activeScreen || "default";
     }
 
-    /* Components */
     if (Array.isArray(json.components)) {
       const comps = JSON.parse(JSON.stringify(json.components));
       migrateLegacyParentId(comps);
@@ -642,37 +633,15 @@ function hydrateState(json) {
       state.components = comps;
     }
 
-    /* Recalculate internal counters to avoid id collisions */
-    let maxCmpNum = 0;
-    let maxLogicNum = 0;
-    for (const c of state.components) {
-      const m = String(c.id).match(/\d+/);
-      if (m) maxCmpNum = Math.max(maxCmpNum, Number(m[0]));
-    }
-    for (const v of state.logic.variables) {
-      const m = String(v.id).match(/\d+/);
-      if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
-    }
-    for (const e of state.logic.orderEvents) {
-      const m = String(e.id).match(/\d+/);
-      if (m) maxLogicNum = Math.max(maxLogicNum, Number(m[0]));
-    }
-    uid = maxCmpNum + 1;
-    logicUid = maxLogicNum + 1;
-
-    /* Reset runtime */
-    for (const k of Object.keys(runtimeVars)) delete runtimeVars[k];
-    for (const k of Object.keys(fieldValues)) delete fieldValues[k];
-    for (const k of Object.keys(loadingByComponent)) delete loadingByComponent[k];
+    _recalcUids(state.components, state.logic.variables, state.logic.orderEvents);
+    _clearRuntimeCaches();
     rebuildRuntimeVars();
     seedFieldValues();
     selectedId.value = null;
     previewMode.value = false;
 
-    // Reset history on hydration (import / template load)
     history.clear();
     history.pushState(_takeSnapshot());
-
     return true;
   } catch (err) {
     console.error("[Builder] Hydration failed:", err);
@@ -717,12 +686,9 @@ function clearAll() {
   state.logic.activeScreen = "default";
   uid = 1;
   logicUid = 1;
-  for (const k of Object.keys(runtimeVars)) delete runtimeVars[k];
-  for (const k of Object.keys(fieldValues)) delete fieldValues[k];
-  for (const k of Object.keys(loadingByComponent)) delete loadingByComponent[k];
+  _clearRuntimeCaches();
   selectedId.value = null;
   previewMode.value = false;
-
   history.clear();
   history.pushState(_takeSnapshot());
 }

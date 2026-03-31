@@ -17,7 +17,7 @@
           class="flex h-7 w-7 items-center justify-center rounded-md border transition-colors"
           :class="canUndo ? 'border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-slate-100' : 'border-slate-700 text-slate-600 cursor-not-allowed'"
           :disabled="!canUndo"
-          @click="onUndo"
+          @click="undo"
           title="Undo (Ctrl+Z)"
         >
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
@@ -26,7 +26,7 @@
           class="flex h-7 w-7 items-center justify-center rounded-md border transition-colors"
           :class="canRedo ? 'border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-slate-100' : 'border-slate-700 text-slate-600 cursor-not-allowed'"
           :disabled="!canRedo"
-          @click="onRedo"
+          @click="redo"
           title="Redo (Ctrl+Y)"
         >
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3"/></svg>
@@ -312,19 +312,19 @@
                 <!-- onPageLoad -->
                 <div class="mb-2">
                   <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onPageLoad</label>
-                  <EventActionEditor :actions="currentEvents.onPageLoad" :order-events="state.logic.orderEvents" :variables="state.logic.variables" :binding-pills="bindingPills" @update="(a) => setEventActions('onPageLoad', a)" />
+                  <EventActionEditor :actions="currentEvents.onPageLoad" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onPageLoad', a)" />
                 </div>
 
                 <!-- onClick (button / card) -->
                 <div v-if="['action-button','card-list-repeater'].includes(selectedComponent.type)" class="mb-2">
                   <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onClick</label>
-                  <EventActionEditor :actions="currentEvents.onClick" :order-events="state.logic.orderEvents" :variables="state.logic.variables" :binding-pills="bindingPills" @update="(a) => setEventActions('onClick', a)" />
+                  <EventActionEditor :actions="currentEvents.onClick" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onClick', a)" />
                 </div>
 
                 <!-- onChange (input / combo) -->
                 <div v-if="['text-input','combo-box','radio-group','checkbox-group','date-picker'].includes(selectedComponent.type)">
                   <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onChange</label>
-                  <EventActionEditor :actions="currentEvents.onChange" :order-events="state.logic.orderEvents" :variables="state.logic.variables" :binding-pills="bindingPills" @update="(a) => setEventActions('onChange', a)" />
+                  <EventActionEditor :actions="currentEvents.onChange" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onChange', a)" />
                 </div>
               </div>
 
@@ -596,8 +596,10 @@
 </template>
 
 <script setup>
-import { computed, ref, h, watch, provide, onMounted, onUnmounted } from "vue";
+import { computed, ref, watch, provide, onMounted, onUnmounted } from "vue";
 import BuilderNode from "./BuilderNode.vue";
+import EventActionEditor from "./EventActionEditor.vue";
+import { FieldText, FieldNumber, FieldSelect, FieldColor, FieldCheck } from "./FieldComponents.js";
 import { COMPONENT_CATALOG, COLS, CANVAS_WIDTH, CELL_SIZE, MOCK_API_DATA, CONTAINER_TYPES } from "../data/componentCatalog";
 import { DEMO_TEMPLATES } from "../data/demoTemplates";
 import { useBuilderStore } from "../stores/builderStore";
@@ -637,22 +639,12 @@ function showToast(message, type = "success", duration = 2500) {
 }
 
 /* ─── Undo / Redo ─── */
-function onUndo() { undo(); }
-function onRedo() { redo(); }
-
 function handleKeyboard(e) {
-  // Skip when typing in input/textarea/select/contenteditable
   const tag = e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target.isContentEditable) return;
-
   const ctrl = e.ctrlKey || e.metaKey;
-  if (ctrl && e.key === "z" && !e.shiftKey) {
-    e.preventDefault();
-    onUndo();
-  } else if (ctrl && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
-    e.preventDefault();
-    onRedo();
-  }
+  if (ctrl && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (ctrl && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
 }
 
 onMounted(() => { window.addEventListener("keydown", handleKeyboard); });
@@ -821,128 +813,6 @@ function setEventActions(trigger, actions) {
   updateProp("events", { ...(c.props.events || {}), [trigger]: actions });
 }
 
-/* ─── EventActionEditor sub-component ─── */
-const EventActionEditor = {
-  props: {
-    actions: { type: Array, default: () => [] },
-    orderEvents: { type: Array, default: () => [] },
-    variables: { type: Array, default: () => [] },
-    bindingPills: { type: Array, default: () => [] }
-  },
-  emits: ["update"],
-  setup(props, { emit }) {
-    function addAction() {
-      emit("update", [...props.actions, { type: "orderEvent", eventId: "", params: "", resultVariable: "", resultPath: "" }]);
-    }
-    function removeAction(idx) {
-      const next = [...props.actions];
-      next.splice(idx, 1);
-      emit("update", next);
-    }
-    function updateAction(idx, patch) {
-      const next = props.actions.map((a, i) => i === idx ? { ...a, ...patch } : a);
-      emit("update", next);
-    }
-    return () => {
-      const items = props.actions.map((action, idx) => {
-        const typeSelect = h("select", {
-          class: "w-full rounded border border-slate-600 bg-slate-900 px-1 py-1 text-[10px] text-slate-200",
-          value: action.type || "orderEvent",
-          onChange: (e) => updateAction(idx, { type: e.target.value })
-        }, [
-          h("option", { value: "orderEvent" }, "Order Event"),
-          h("option", { value: "setVariable" }, "Set Variable"),
-          h("option", { value: "navigate" }, "Navigate")
-        ]);
-
-        let details;
-        if (action.type === "setVariable") {
-          details = h("div", { class: "mt-1 space-y-1" }, [
-            h("select", {
-              class: "w-full rounded border border-slate-600 bg-slate-900 px-1 py-1 font-mono text-[10px] text-slate-200",
-              value: action.variable || "",
-              onChange: (e) => updateAction(idx, { variable: e.target.value })
-            }, [
-              h("option", { value: "" }, "— variable —"),
-              ...props.variables.map((v) => h("option", { key: v.id, value: v.name }, v.name))
-            ]),
-            h("input", {
-              class: "w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-200",
-              value: action.value || "",
-              placeholder: "Value (e.g. $input.value or literal)",
-              onInput: (e) => updateAction(idx, { value: e.target.value })
-            })
-          ]);
-        } else if (action.type === "navigate") {
-          details = h("input", {
-            class: "mt-1 w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 text-[10px] text-slate-200",
-            value: action.target || "",
-            placeholder: "Target screen",
-            onInput: (e) => updateAction(idx, { target: e.target.value })
-          });
-        } else {
-          details = h("div", { class: "mt-1 space-y-1" }, [
-            h("select", {
-              class: "w-full rounded border border-violet-500/30 bg-violet-500/10 px-1 py-1 font-mono text-[10px] text-violet-200",
-              value: action.eventId || "",
-              onChange: (e) => updateAction(idx, { eventId: e.target.value })
-            }, [
-              h("option", { value: "" }, "— select order event —"),
-              ...props.orderEvents.map((oe) =>
-                h("option", { key: oe.id, value: oe.id }, `${oe.eventCode || oe.id} — ${oe.name}`)
-              )
-            ]),
-            h("input", {
-              class: "w-full rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-200",
-              value: action.params || "",
-              placeholder: "Override params (optional)",
-              onInput: (e) => updateAction(idx, { params: e.target.value })
-            }),
-            h("div", { class: "flex gap-1" }, [
-              h("input", {
-                class: "min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-200",
-                value: action.resultPath || "",
-                placeholder: "Result path",
-                onInput: (e) => updateAction(idx, { resultPath: e.target.value })
-              }),
-              h("select", {
-                class: "min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1 py-1 font-mono text-[10px] text-slate-200",
-                value: action.resultVariable || "",
-                onChange: (e) => updateAction(idx, { resultVariable: e.target.value })
-              }, [
-                h("option", { value: "" }, "→ variable"),
-                ...props.variables.map((v) => h("option", { key: v.id, value: v.name }, v.name))
-              ])
-            ])
-          ]);
-        }
-
-        return h("div", { key: idx, class: "mb-1.5 rounded border border-slate-600/60 bg-slate-900/50 p-1.5" }, [
-          h("div", { class: "flex items-center gap-1" }, [
-            h("span", { class: "shrink-0 text-[9px] text-slate-500" }, `#${idx + 1}`),
-            typeSelect,
-            h("button", {
-              type: "button",
-              class: "shrink-0 text-[10px] text-red-400 hover:text-red-300",
-              onClick: () => removeAction(idx)
-            }, "✕")
-          ]),
-          details
-        ]);
-      });
-
-      return h("div", {}, [
-        ...items,
-        h("button", {
-          type: "button",
-          class: "mt-1 w-full rounded border border-dashed border-slate-600 py-1 text-[10px] text-slate-400 hover:border-slate-500 hover:text-slate-300",
-          onClick: addAction
-        }, "+ Add Action")
-      ]);
-    };
-  }
-};
-
 /* ─── Preview mode ─── */
 watch(previewMode, async (on) => {
   if (on) {
@@ -972,8 +842,7 @@ const jsonExport = computed(() => {
 
 function treeParentGroupKey(c) {
   const pf = c.parentFieldId;
-  if (pf == null || pf === "") return "__root__";
-  return String(pf);
+  return (pf == null || pf === "") ? "__root__" : String(pf);
 }
 
 const nodeTreeItems = computed(() => {
@@ -988,17 +857,11 @@ const nodeTreeItems = computed(() => {
   }
   const out = [];
   function walk(parentFieldKey, depth) {
-    const groupKey = parentFieldKey ?? "__root__";
-    for (const c of byParent.get(groupKey) || []) {
+    for (const c of byParent.get(parentFieldKey) || []) {
       const fid = c.props?.fieldId;
-      const fidPart = fid != null && String(fid).trim() !== "" ? String(fid).trim() : null;
-      out.push({
-        id: c.id,
-        depth,
-        label: fidPart ? `${typeLabel(c.type)} — ${fidPart}` : typeLabel(c.type)
-      });
-      const childKey = fid != null && String(fid).trim() !== "" ? String(fid).trim() : null;
-      if (childKey && byParent.has(childKey)) walk(childKey, depth + 1);
+      const fidStr = fid != null && String(fid).trim() !== "" ? String(fid).trim() : null;
+      out.push({ id: c.id, depth, label: fidStr ? `${typeLabel(c.type)} — ${fidStr}` : typeLabel(c.type) });
+      if (fidStr && byParent.has(fidStr)) walk(fidStr, depth + 1);
     }
   }
   walk("__root__", 0);
@@ -1014,12 +877,26 @@ function pathWithParents(path) {
   return Array.from({ length: parts.length }, (_, i) => parts.slice(0, i + 1).join("."));
 }
 
+function resolveDataPath(path) {
+  if (!path) return null;
+  const clean = normalizePath(path);
+  if (clean.startsWith("state.")) return getPath(runtimeVars, clean.slice("state.".length));
+  const keys = clean.split(".").filter(Boolean);
+  let cur = MOCK_API_DATA;
+  for (const key of keys) {
+    if (cur == null || typeof cur !== "object") return null;
+    cur = cur[key];
+  }
+  return cur ?? null;
+}
+
+/* ─── Data Navigator tree ─── */
 const dataPathItems = computed(() => {
   const set = new Set();
   function collectPaths(value, prefix) {
     if (!prefix) return;
     set.add(prefix);
-    if (value == null) return;
+    if (value == null || typeof value !== "object") return;
     if (Array.isArray(value)) {
       for (const item of value) {
         if (item && typeof item === "object" && !Array.isArray(item))
@@ -1027,7 +904,6 @@ const dataPathItems = computed(() => {
       }
       return;
     }
-    if (typeof value !== "object") return;
     for (const key of Object.keys(value)) collectPaths(value[key], `${prefix}.${key}`);
   }
   collectPaths(MOCK_API_DATA.apiData, "apiData");
@@ -1058,11 +934,7 @@ const dataPathTreeItems = computed(() => {
   return out;
 });
 
-const dataPathTreeItemMap = computed(() => {
-  const map = new Map();
-  for (const item of dataPathTreeItems.value) map.set(item.path, item);
-  return map;
-});
+const dataPathTreeItemMap = computed(() => new Map(dataPathTreeItems.value.map((item) => [item.path, item])));
 
 const visibleDataPathTreeItems = computed(() =>
   dataPathTreeItems.value.filter((item) => {
@@ -1078,28 +950,24 @@ function toggleDataTree(path) {
   const item = dataPathTreeItemMap.value.get(path);
   if (!item?.hasChildren) return;
   const next = new Set(expandedDataPaths.value);
-  if (next.has(path)) next.delete(path); else next.add(path);
+  next.has(path) ? next.delete(path) : next.add(path);
   expandedDataPaths.value = next;
 }
 
-/* Property update with debounced history recording.
-   Rapid edits (e.g. typing in text field) are batched into one undo step.
-   We push the pre-edit state once, then after the debounce settles we push
-   the post-edit state.  Both pushes use commitSnapshot() which simply records
-   the current state (deduplication in historyManager prevents identical entries). */
+/* ─── Property update (debounced snapshot) ─── */
 let _propDebounceTimer = null;
 let _propSnapshotTaken = false;
 
 function p(key, value) {
   if (!_propSnapshotTaken) {
-    commitSnapshot(); // push pre-edit state once
+    commitSnapshot();
     _propSnapshotTaken = true;
   }
-  updateProp(key, value); // apply immediately (no history push)
+  updateProp(key, value);
   clearTimeout(_propDebounceTimer);
   _propDebounceTimer = setTimeout(() => {
     _propSnapshotTaken = false;
-    commitSnapshot(); // push the final "after" state once edits settle
+    commitSnapshot();
   }, 600);
 }
 
@@ -1118,21 +986,6 @@ function onCanvasDrop(event) {
 }
 
 function onSelectNode(id) { store.selectComponent(id); }
-
-function resolveDataPath(path) {
-  if (!path) return null;
-  const clean = normalizePath(path);
-  if (clean.startsWith("state.")) {
-    return getPath(runtimeVars, clean.slice("state.".length));
-  }
-  const keys = clean.split(".").filter(Boolean);
-  let current = MOCK_API_DATA;
-  for (const key of keys) {
-    if (current == null || typeof current !== "object") return null;
-    current = current[key];
-  }
-  return current ?? null;
-}
 
 const previewData = computed(() => resolveDataPath(activeDataPath.value));
 const canShowTable = computed(() => Array.isArray(previewData.value));
@@ -1211,79 +1064,6 @@ function removeGridColumn(index) {
   updateProp("columns", cols);
 }
 
-/* ─── Field Components ─── */
-const inputClass = "h-8 w-full rounded-md border border-slate-600 bg-slate-800 px-2 text-xs text-slate-100 focus:border-blue-400 focus:outline-none";
-
-function toHexColor(value) {
-  const fallback = "#ffffff";
-  const raw = String(value || "").trim();
-  if (!raw) return fallback;
-  if (/^#([0-9a-fA-F]{3})$/.test(raw)) return `#${raw.slice(1).split("").map((c) => c + c).join("").toLowerCase()}`;
-  if (/^#([0-9a-fA-F]{6})$/.test(raw)) return raw.toLowerCase();
-  const m = raw.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*[\d.]+\s*)?\)$/i);
-  if (!m) return fallback;
-  const cl = (n) => Math.max(0, Math.min(255, Math.round(Number(n) || 0)));
-  return `#${cl(m[1]).toString(16).padStart(2, "0")}${cl(m[2]).toString(16).padStart(2, "0")}${cl(m[3]).toString(16).padStart(2, "0")}`;
-}
-
-const FieldText = {
-  props: { label: String, modelValue: [String, Number] },
-  emits: ["update:modelValue"],
-  setup(props, { emit }) {
-    return () => h("label", { class: "block text-xs text-slate-300" }, [
-      h("span", { class: "mb-1 block font-medium" }, props.label),
-      h("input", { class: inputClass, value: props.modelValue ?? "", onInput: (e) => emit("update:modelValue", e.target.value) })
-    ]);
-  }
-};
-const FieldNumber = {
-  props: { label: String, modelValue: [String, Number] },
-  emits: ["update:modelValue"],
-  setup(props, { emit }) {
-    return () => h("label", { class: "block text-xs text-slate-300" }, [
-      h("span", { class: "mb-1 block font-medium" }, props.label),
-      h("input", { type: "number", class: inputClass, value: props.modelValue ?? 0, onInput: (e) => emit("update:modelValue", Number(e.target.value)) })
-    ]);
-  }
-};
-const FieldSelect = {
-  props: { label: String, modelValue: String, options: Array },
-  emits: ["update:modelValue"],
-  setup(props, { emit }) {
-    return () => h("label", { class: "block text-xs text-slate-300" }, [
-      h("span", { class: "mb-1 block font-medium" }, props.label),
-      h("select", { class: inputClass, value: props.modelValue, onChange: (e) => emit("update:modelValue", e.target.value) },
-        (props.options || []).map((o) => h("option", { key: o, value: o }, o))
-      )
-    ]);
-  }
-};
-const FieldColor = {
-  props: { label: String, modelValue: String },
-  emits: ["update:modelValue"],
-  setup(props, { emit }) {
-    return () => h("div", { class: "block text-xs text-slate-300" }, [
-      h("span", { class: "mb-1 block font-medium" }, props.label),
-      h("div", { class: "flex items-center gap-2" }, [
-        h("div", { class: "relative h-8 w-8 shrink-0 overflow-hidden rounded border border-slate-600" }, [
-          h("div", { class: "h-full w-full", style: { backgroundColor: toHexColor(props.modelValue) } }),
-          h("input", { type: "color", class: "absolute inset-0 h-full w-full cursor-pointer opacity-0", value: toHexColor(props.modelValue), onInput: (e) => emit("update:modelValue", e.target.value) })
-        ]),
-        h("input", { class: `${inputClass} font-mono`, value: props.modelValue || "#ffffff", placeholder: "#ffffff", onInput: (e) => emit("update:modelValue", e.target.value) })
-      ])
-    ]);
-  }
-};
-const FieldCheck = {
-  props: { label: String, modelValue: Boolean },
-  emits: ["update:modelValue"],
-  setup(props, { emit }) {
-    return () => h("label", { class: "flex cursor-pointer items-center gap-2 text-xs text-slate-300" }, [
-      h("input", { type: "checkbox", class: "accent-blue-600", checked: props.modelValue, onChange: (e) => emit("update:modelValue", e.target.checked) }),
-      h("span", { class: "font-medium" }, props.label)
-    ]);
-  }
-};
 </script>
 
 <style scoped>
