@@ -82,7 +82,7 @@
     <!-- ═══ Main Content Area ═══ -->
     <div class="grid flex-1 min-h-0 w-full min-w-0 grid-cols-[minmax(240px,280px)_minmax(0,1fr)_minmax(260px,320px)] gap-3 p-3">
       <!-- ═══ Left Panel ═══ -->
-      <aside class="flex flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+      <aside class="relative z-[40] flex flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
         <div class="grid grid-cols-4 gap-0.5 border-b border-slate-700 p-1.5">
           <button v-for="t in leftTabs" :key="t.key" type="button" class="rounded-md px-1 py-1.5 text-[10px] font-medium transition-colors" :class="leftTab === t.key ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'" @click="leftTab = t.key">{{ t.label }}</button>
         </div>
@@ -219,7 +219,7 @@
       </aside>
 
       <!-- ═══ Canvas ═══ -->
-      <main class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+      <main id="canvas-root" class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
         <div class="relative flex-1 overflow-auto bg-slate-950" @click="deselectAll()">
           <div class="mx-auto" :style="{ width: `${CANVAS_WIDTH}px` }">
             <div class="relative rounded-xl border border-slate-700 bg-slate-900" :class="previewMode ? '' : 'canvas-grid'" :style="{ height: canvasRows * CELL_SIZE + 'px' }" @click.stop="deselectAll()" @dragover.prevent @drop.prevent="onCanvasDrop">
@@ -230,7 +230,7 @@
       </main>
 
       <!-- ═══ Property Editor ═══ -->
-      <aside class="flex flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+      <aside class="relative z-[40] flex flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
         <div class="border-b border-slate-700 p-4">
           <h2 class="text-sm font-semibold text-slate-100">Property Editor</h2>
           <p class="mt-1 text-xs text-slate-400">{{ selectedComponent ? typeLabel(selectedComponent.type) : 'Select a component to edit.' }}</p>
@@ -658,35 +658,54 @@
     </div>
 
     <!-- AI Build Modal -->
-    <div v-if="aiOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" @click.self="aiOpen = false">
+    <div v-if="aiOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" @click.self="!aiBusy && (aiOpen = false)">
       <div class="w-full max-w-3xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl" @click.stop>
-        <div class="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-          <h3 class="text-sm font-semibold text-slate-100">AI Screen Builder</h3>
-          <button class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800" @click="aiOpen = false">Close</button>
+
+        <!-- Header -->
+        <div class="relative flex items-center justify-between border-b border-slate-700 px-4 py-3 overflow-hidden">
+          <div v-if="aiBusy" class="absolute inset-x-0 top-0 h-0.5 ai-scan-line" />
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-5 w-5 items-center justify-center">
+              <span v-if="aiBusy" class="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-30" />
+              <svg class="relative h-4 w-4" :class="aiBusy ? 'text-cyan-300' : 'text-cyan-500'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 3.7L18 8.5l-3 2.9.7 4.1L12 13.8l-3.7 1.7.7-4.1-3-2.9 4.2-1.8L12 3z" />
+              </svg>
+            </span>
+            <h3 class="text-sm font-semibold" :class="aiBusy ? 'text-cyan-200' : 'text-slate-100'">AI Screen Builder</h3>
+          </div>
+          <button class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed" @click="aiOpen = false" :disabled="aiBusy">Close</button>
         </div>
-        <div class="space-y-3 p-4">
-          <p class="text-xs text-slate-400">
-            Describe what you want. Example: &quot;가입자를 조회하는 화면을 만들어줘. 전화번호를 검색하면 사용자의 이름과 요금제 정보를 보여줘.&quot;
-          </p>
-          <textarea
-            v-model="aiUserPrompt"
-            rows="7"
-            class="w-full rounded border border-slate-600 bg-slate-950 px-3 py-2 font-mono text-[12px] text-slate-200 outline-none focus:border-cyan-500/50"
-            placeholder="Enter your request (Korean is fine)..."
-          />
-          <div class="flex items-center justify-end gap-2">
-            <p v-if="aiBusy" class="mr-auto text-xs text-cyan-300/90">
-              AI is generating your screen...
+
+        <!-- Body -->
+        <div class="p-4 space-y-4">
+
+          <!-- Input area -->
+          <template v-if="!aiBusy">
+            <p class="text-xs text-slate-400">
+              Describe what you want. Example: &quot;가입자를 조회하는 화면을 만들어줘. 전화번호를 검색하면 사용자의 이름과 요금제 정보를 보여줘.&quot;
             </p>
-            <button class="rounded border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800" @click="aiOpen = false" :disabled="aiBusy">
-              Cancel
-            </button>
+            <textarea
+              v-model="aiUserPrompt"
+              rows="7"
+              class="w-full rounded border border-slate-600 bg-slate-950 px-3 py-2 font-mono text-[12px] text-slate-200 outline-none focus:border-cyan-500/50"
+              placeholder="Enter your request (Korean is fine)..."
+            />
+          </template>
+
+          <!-- Loading overlay -->
+          <AILoadingOverlay v-else :stage="aiStage" :progress="aiProgress" />
+
+          <!-- Action buttons -->
+          <div v-if="!aiBusy" class="flex items-center justify-end gap-2">
+            <button class="rounded border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800" @click="aiOpen = false">Cancel</button>
             <button
-              class="rounded bg-cyan-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+              class="flex items-center gap-1.5 rounded bg-cyan-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-cyan-500"
               @click="onRunAI"
-              :disabled="aiBusy"
             >
-              {{ aiBusy ? "Generating..." : "Run AI" }}
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Run AI
             </button>
           </div>
         </div>
@@ -699,13 +718,14 @@
 import { computed, ref, watch, provide, onMounted, onUnmounted } from "vue";
 import BuilderNode from "./BuilderNode.vue";
 import EventActionEditor from "./EventActionEditor.vue";
+import AILoadingOverlay from "./AILoadingOverlay.vue";
 import { FieldText, FieldNumber, FieldSelect, FieldColor, FieldCheck } from "./FieldComponents.js";
 import { COMPONENT_CATALOG, COLS, CANVAS_WIDTH, CELL_SIZE, MOCK_API_DATA, CONTAINER_TYPES } from "../data/componentCatalog";
 import { DEMO_TEMPLATES } from "../data/demoTemplates";
 import { useBuilderStore } from "../stores/builderStore";
 import { PREVIEW_CTX } from "../runtime/previewContext";
 import { getPath } from "../runtime/runtimeEngine";
-import { generateScreenFromPrompt } from "../ai/fakeAIService";
+import { generateScreenFromPrompt, AI_STAGES } from "../ai/fakeAIService";
 import { validateAndNormalizeBuilderState } from "../ai/builderStateValidator";
 
 const store = useBuilderStore();
@@ -820,8 +840,15 @@ async function onRunAI() {
   if (aiBusy.value) return;
 
   aiBusy.value = true;
+  aiStage.value = AI_STAGES[0];
+  aiProgress.value = 0;
   try {
-    const parsed = await generateScreenFromPrompt(userText);
+    const parsed = await generateScreenFromPrompt(userText, {
+      onStage(stage) {
+        aiStage.value = stage;
+        aiProgress.value = stage.progress;
+      }
+    });
 
     const validation = validateAndNormalizeBuilderState(parsed);
     if (!validation.ok) {
@@ -837,6 +864,8 @@ async function onRunAI() {
     showToast(`AI 실행 실패: ${err?.message || String(err)}`, "error", 6000);
   } finally {
     aiBusy.value = false;
+    aiStage.value = null;
+    aiProgress.value = 0;
   }
 }
 
@@ -1001,6 +1030,8 @@ const expandedDataPaths = ref(new Set(["apiData", "state"]));
 const aiOpen = ref(false);
 const aiUserPrompt = ref("");
 const aiBusy = ref(false);
+const aiStage = ref(null);      // current AI_STAGES entry
+const aiProgress = ref(0);      // 0–100
 
 const jsonExport = computed(() => {
   const data = serializeStateForExport();

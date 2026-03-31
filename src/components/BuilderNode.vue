@@ -19,7 +19,7 @@
       <Teleport to="body">
         <div
           v-if="showFloatingToolbar"
-          class="fixed z-[80] flex items-center gap-1"
+          class="fixed z-[35] flex items-center gap-1"
           :style="floatingToolbarStyle"
         >
         <button

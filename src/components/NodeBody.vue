@@ -284,11 +284,11 @@
       </div>
     </template>
 
-    <!-- Status Badge: 버튼과 동일하게 셀 전체를 채우고, 내부 텍스트 정렬만 hAlign으로 제어 -->
+    <!-- Status Badge: pill 크기는 콘텐츠에 맞추고, 셀 정렬은 cellAlignWrapperClass(부모)가 담당 -->
     <template v-else-if="component.type === 'status-badge'">
       <span
-        class="flex h-full w-full items-center rounded-full px-3 text-xs font-semibold"
-        :class="[badgeToneClass, cellHVParts().justify]"
+        class="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none whitespace-nowrap"
+        :class="badgeToneClass"
       >{{ component.props.label }}</span>
     </template>
 

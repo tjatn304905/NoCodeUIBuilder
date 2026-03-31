@@ -62,16 +62,56 @@ function buildScreenName(baseName, userPrompt) {
 }
 
 /**
+ * AI generation stages with cumulative progress (0–100).
+ */
+export const AI_STAGES = [
+  { id: "analyze",   label: "Analyzing prompt…",         progress: 10 },
+  { id: "schema",    label: "Designing screen structure…", progress: 28 },
+  { id: "layout",    label: "Optimizing layout…",         progress: 48 },
+  { id: "fields",    label: "Placing components…",        progress: 65 },
+  { id: "logic",     label: "Wiring events & logic…",     progress: 80 },
+  { id: "validate",  label: "Validating output…",         progress: 93 },
+  { id: "done",      label: "Done",                        progress: 100 },
+];
+
+/**
  * Demo fake AI generator (no real LLM/network call).
  * @param {string} userPrompt
+ * @param {{ onStage?: (stage: typeof AI_STAGES[number]) => void }} [opts]
  * @returns {Promise<{screenInfo: object, logic: object, components: Array}>}
  */
-export function generateScreenFromPrompt(userPrompt) {
+export function generateScreenFromPrompt(userPrompt, opts = {}) {
+  const { onStage } = opts;
   const selected = pickTemplateByPrompt(userPrompt) ?? randomPick(DEMO_AI_TEMPLATES);
-  const delayMs = randomInt(1500, 3000);
+
+  // Total fake generation time: 2.8–4.5 s  (spread across stages)
+  const totalMs = randomInt(2800, 4500);
+  const stagesWithoutLast = AI_STAGES.slice(0, -1);
 
   return new Promise((resolve) => {
+    let elapsed = 0;
+
+    stagesWithoutLast.forEach((stage, i) => {
+      // Distribute time roughly proportional to progress gaps
+      const gap = AI_STAGES[i + 1].progress - stage.progress;
+      const delay = Math.round((gap / 100) * totalMs * randomInt(85, 115) / 100);
+      elapsed += delay;
+
+      setTimeout(() => {
+        onStage?.(stage);
+      }, elapsed - delay); // fire at start of each stage
+    });
+
+    // Fire all stage start times correctly
+    let acc = 0;
+    stagesWithoutLast.forEach((stage, i) => {
+      setTimeout(() => onStage?.(stage), acc);
+      const gap = AI_STAGES[i + 1].progress - stage.progress;
+      acc += Math.round((gap / 100) * totalMs);
+    });
+
     setTimeout(() => {
+      onStage?.(AI_STAGES[AI_STAGES.length - 1]);
       const out = deepClone(selected.data);
       out.screenInfo = {
         ...(out.screenInfo || {}),
@@ -79,7 +119,7 @@ export function generateScreenFromPrompt(userPrompt) {
         version: "1.0"
       };
       resolve(out);
-    }, delayMs);
+    }, totalMs);
   });
 }
 
