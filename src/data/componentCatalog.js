@@ -129,7 +129,7 @@ export const COMPONENT_CATALOG = [
         type: "status-badge",
         label: "Status Badge",
         defaultSize: { w: 24, h: 4 },
-        defaultProps: { status: "Active", tone: "success" }
+        defaultProps: { label: "Active", tone: "success" }
       },
       {
         type: "divider",
@@ -186,7 +186,7 @@ export const COMPONENT_CATALOG = [
         label: "Action Button",
         defaultSize: { w: 24, h: 8 },
         defaultProps: {
-          text: "Submit",
+          label: "Submit",
           actionType: "submit",
           icon: "none",
           params: "",

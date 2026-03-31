@@ -240,8 +240,81 @@
 
             <!-- ── 기본 식별자 필드 (항상 노출) ── -->
             <div class="mb-3 rounded-md bg-slate-900/60 px-3 py-2.5 ring-1 ring-slate-700/80">
-              <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
+
+              <!-- 헤더 행: 라벨 + 참조 뱃지 + 편집 버튼 -->
+              <div class="mb-1.5 flex items-center gap-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Field ID</span>
+                <!-- 참조 카운터 뱃지 -->
+                <span
+                  v-if="fieldIdRefCount > 0"
+                  class="rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-300 ring-1 ring-cyan-500/30"
+                  :title="`Referenced by ${fieldIdRefCount} other component(s)`"
+                >
+                  ⟨/⟩ {{ fieldIdRefCount }}
+                </span>
+                <span v-else class="rounded-full bg-slate-700/50 px-1.5 py-0.5 text-[9px] text-slate-500">no refs</span>
+                <button
+                  v-if="!fieldIdEditing"
+                  class="ml-auto rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                  title="Rename Field ID"
+                  @click="fieldIdEditing = true"
+                >✎ rename</button>
+              </div>
+
+              <!-- 읽기 모드 -->
+              <div v-if="!fieldIdEditing" class="flex items-center gap-2">
+                <code class="flex-1 rounded bg-slate-800 px-2 py-1 font-mono text-[12px] text-cyan-300">
+                  {{ selectedComponent.props.fieldId }}
+                </code>
+              </div>
+
+              <!-- 편집 모드 -->
+              <div v-else class="space-y-1.5">
+                <input
+                  :value="fieldIdDraft"
+                  autofocus
+                  spellcheck="false"
+                  class="h-8 w-full rounded border bg-slate-900 px-2 font-mono text-[12px] text-slate-100 outline-none focus:ring-1"
+                  :class="fieldIdError
+                    ? 'border-red-500/70 focus:ring-red-500/40'
+                    : 'border-cyan-500/50 focus:ring-cyan-500/40'"
+                  @input="onFieldIdInput($event.target.value)"
+                  @keydown.enter.prevent="commitFieldId"
+                  @keydown.escape.prevent="cancelFieldId"
+                />
+                <!-- 에러 메시지 -->
+                <p v-if="fieldIdError" class="flex items-center gap-1 text-[10px] text-red-400">
+                  <span>⚠</span> {{ fieldIdError }}
+                </p>
+                <!-- 참조 영향 경고 -->
+                <p v-else-if="fieldIdRefCount > 0" class="flex items-center gap-1 text-[10px] text-amber-300/80">
+                  <span>↻</span> {{ fieldIdRefCount }} reference(s) will be auto-updated.
+                </p>
+                <!-- 액션 버튼 -->
+                <div class="flex gap-1.5">
+                  <button
+                    class="flex-1 rounded border py-1 text-[10px] font-semibold transition-colors"
+                    :class="fieldIdError
+                      ? 'cursor-not-allowed border-slate-700 text-slate-500'
+                      : 'border-cyan-600 bg-cyan-600/20 text-cyan-200 hover:bg-cyan-600/30'"
+                    :disabled="!!fieldIdError"
+                    @click="commitFieldId"
+                  >✓ Apply</button>
+                  <button
+                    class="rounded border border-slate-600 px-3 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                    @click="cancelFieldId"
+                  >✕</button>
+                </div>
+              </div>
+
             </div>
+
+            <!-- ── Label (Field ID 바로 아래, container·label·divider·card-list-repeater·data-grid 타입 제외) ── -->
+            <template v-if="!['container','label','divider','card-list-repeater','data-grid'].includes(selectedComponent.type)">
+              <div class="mb-3 rounded-md bg-slate-900/40 px-2.5 py-2 ring-1 ring-slate-700/60">
+                <FieldText label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
+              </div>
+            </template>
 
             <!-- ── Collapsible sections ── -->
             <div class="space-y-1.5">
@@ -284,12 +357,12 @@
               </details>
 
               <!-- ── Display & Access Logic ── -->
-              <details class="group rounded-md border border-amber-600/30 bg-amber-950/20 [&[open]>summary_.chevron]:rotate-90">
+              <details class="group rounded-md border border-slate-600 bg-slate-800/80 [&[open]>summary_.chevron]:rotate-90">
                 <summary class="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
-                  <span class="chevron inline-block text-[10px] text-amber-500/80 transition-transform duration-150">▸</span>
-                  <span class="text-[10px] font-bold uppercase tracking-widest text-amber-300/90">Display &amp; Access Logic</span>
+                  <span class="chevron inline-block text-[10px] text-slate-400 transition-transform duration-150">▸</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-slate-300">Display &amp; Access Logic</span>
                 </summary>
-                <div class="space-y-2 border-t border-amber-600/20 px-2.5 py-2.5">
+                <div class="space-y-2 border-t border-slate-700 px-2.5 py-2.5">
                   <label class="block text-xs text-slate-300">
                     <span class="mb-0.5 block font-medium text-slate-400">hiddenCon</span>
                     <textarea :value="selectedComponent.props.hiddenCon ?? ''" rows="2" class="w-full rounded-md border border-slate-600 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-200" placeholder="e.g. {{$state.flag}} or true" @input="p('hiddenCon', $event.target.value)" />
@@ -301,14 +374,34 @@
                 </div>
               </details>
 
-              <!-- ── 컴포넌트 타입별 일반 필드 (구분선으로 섹션 구별) ── -->
-              <template v-if="selectedComponent.type !== 'container'">
-                <div class="space-y-2 rounded-md bg-slate-900/40 px-2.5 py-2.5 ring-1 ring-slate-700/60">
-                  <FieldText v-if="selectedComponent.type !== 'label'" label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
-                  <FieldSelect label="Horizontal align" :model-value="selectedComponent.props.hAlign" :options="['left','center','right']" @update:model-value="(v) => p('hAlign', v)" />
-                  <FieldSelect label="Vertical align" :model-value="selectedComponent.props.vAlign" :options="['top','middle','bottom']" @update:model-value="(v) => p('vAlign', v)" />
+              <!-- ── Alignment (container·divider·card-list-repeater·data-grid 타입 제외) ── -->
+              <details
+                v-if="!['container','divider','card-list-repeater','data-grid'].includes(selectedComponent.type)"
+                class="group rounded-md border border-slate-600 bg-slate-800/80 [&[open]>summary_.chevron]:rotate-90"
+              >
+                <summary class="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
+                  <span class="chevron inline-block text-[10px] text-slate-400 transition-transform duration-150">▸</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-slate-300">Alignment</span>
+                </summary>
+                <div class="space-y-2 border-t border-slate-700 px-2.5 py-2.5">
+                  <FieldSelect label="Horizontal" :model-value="selectedComponent.props.hAlign" :options="['left','center','right']" @update:model-value="(v) => p('hAlign', v)" />
+                  <FieldSelect v-if="selectedComponent.type !== 'accordion'" label="Vertical" :model-value="selectedComponent.props.vAlign" :options="['top','middle','bottom']" @update:model-value="(v) => p('vAlign', v)" />
                 </div>
-              </template>
+              </details>
+
+              <!-- ── Data Grid: H Align만 표시 ── -->
+              <details
+                v-if="selectedComponent.type === 'data-grid'"
+                class="group rounded-md border border-slate-600 bg-slate-800/80 [&[open]>summary_.chevron]:rotate-90"
+              >
+                <summary class="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
+                  <span class="chevron inline-block text-[10px] text-slate-400 transition-transform duration-150">▸</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-slate-300">Alignment</span>
+                </summary>
+                <div class="space-y-2 border-t border-slate-700 px-2.5 py-2.5">
+                  <FieldSelect label="Horizontal" :model-value="selectedComponent.props.hAlign" :options="['left','center','right']" @update:model-value="(v) => p('hAlign', v)" />
+                </div>
+              </details>
 
               <!-- ── Events ── -->
               <details class="group rounded-md border border-slate-600 bg-slate-800/80 [&[open]>summary_.chevron]:rotate-90">
@@ -358,7 +451,6 @@
               <template v-if="selectedComponent.type === 'accordion'">
                 <FieldText label="Accordion Title" :model-value="selectedComponent.props.title" @update:model-value="(v) => p('title', v)" />
                 <FieldText label="Panels (comma-separated)" :model-value="selectedComponent.props.panels" @update:model-value="(v) => p('panels', v)" />
-                <FieldSelect label="Active Panel" :model-value="selectedComponent.props.activePanel" :options="panelOptions" @update:model-value="(v) => p('activePanel', v)" />
               </template>
 
               <!-- Text Input -->
@@ -385,7 +477,6 @@
 
               <!-- Status Badge -->
               <template v-if="selectedComponent.type === 'status-badge'">
-                <FieldText label="Status Text" :model-value="selectedComponent.props.status" @update:model-value="(v) => p('status', v)" />
                 <FieldSelect label="Tone" :model-value="selectedComponent.props.tone" :options="['default','success','warning','error']" @update:model-value="(v) => p('tone', v)" />
               </template>
 
@@ -398,7 +489,6 @@
 
               <!-- Button -->
               <template v-if="selectedComponent.type === 'action-button'">
-                <FieldText label="Button Text" :model-value="selectedComponent.props.text" @update:model-value="(v) => p('text', v)" />
                 <FieldSelect label="Action Type" :model-value="selectedComponent.props.actionType" :options="['submit','navigate','api-call','open-modal']" @update:model-value="(v) => p('actionType', v)" />
                 <FieldSelect label="Icon" :model-value="selectedComponent.props.icon" :options="['none','search','plus','edit','delete','check','arrow','download','refresh','save']" @update:model-value="(v) => p('icon', v)" />
                 <FieldSelect label="Color Preset" :model-value="selectedComponent.props.colorPreset" :options="['primary','secondary','success','danger','warning','dark','custom']" @update:model-value="(v) => p('colorPreset', v)" />
@@ -621,7 +711,9 @@ import { validateAndNormalizeBuilderState } from "../ai/builderStateValidator";
 const store = useBuilderStore();
 const {
   state, selectedId, previewMode, selectedComponent, rootComponents, canvasRows,
-  deselectAll, deleteComponent, addComponent, updateProp, updatePropUndoable, typeLabel,
+  deselectAll, deleteComponent, addComponent, updateProp, updatePropUndoable,
+  renameFieldId, countFieldIdRefs,
+  typeLabel,
   rebuildRuntimeVars, seedFieldValues, runAllPageLoadTriggers, runPreviewTrigger,
   runtimeVars, fieldValues, loadingByComponent,
   addLogicVariable, removeLogicVariable, updateLogicVariable,
@@ -806,6 +898,65 @@ const bindingPills = computed(() => {
 function copyToClipboard(text) {
   navigator.clipboard?.writeText(text).catch(() => {});
 }
+
+/* ─── Field ID Editor ─── */
+const fieldIdDraft     = ref("");          // 편집 중인 임시 값
+const fieldIdEditing   = ref(false);       // 편집 모드 여부
+const fieldIdError     = ref("");          // 에러 메시지 ("" = 정상)
+
+// 선택 컴포넌트가 바뀌면 draft 초기화
+watch(selectedComponent, (c) => {
+  fieldIdDraft.value   = c?.props?.fieldId ?? "";
+  fieldIdEditing.value = false;
+  fieldIdError.value   = "";
+}, { immediate: true });
+
+// 입력할 때마다 중복 실시간 체크
+function onFieldIdInput(v) {
+  fieldIdDraft.value = v;
+  const trimNew = v.trim();
+  const trimOld = selectedComponent.value?.props?.fieldId ?? "";
+  if (!trimNew) {
+    fieldIdError.value = "Field ID cannot be empty.";
+  } else if (trimNew !== trimOld && state.components.some((c) => c.props?.fieldId === trimNew)) {
+    fieldIdError.value = `"${trimNew}" is already used by another component.`;
+  } else {
+    fieldIdError.value = "";
+  }
+}
+
+// 확정: Enter 키 or blur
+function commitFieldId() {
+  const trimNew = fieldIdDraft.value.trim();
+  const trimOld = selectedComponent.value?.props?.fieldId ?? "";
+  if (!trimNew || trimNew === trimOld) {
+    // 변경 없음 → 그냥 닫기
+    fieldIdDraft.value   = trimOld;
+    fieldIdEditing.value = false;
+    fieldIdError.value   = "";
+    return;
+  }
+  if (fieldIdError.value) return; // 에러 있으면 확정 불가
+  const result = renameFieldId(trimOld, trimNew);
+  if (result.ok) {
+    fieldIdEditing.value = false;
+    showToast(`Field ID renamed: "${trimOld}" → "${trimNew}"`, "success");
+  } else if (result.reason === "duplicate") {
+    fieldIdError.value = `"${trimNew}" is already used by another component.`;
+  } else {
+    fieldIdError.value = "Rename failed.";
+  }
+}
+
+function cancelFieldId() {
+  fieldIdDraft.value   = selectedComponent.value?.props?.fieldId ?? "";
+  fieldIdEditing.value = false;
+  fieldIdError.value   = "";
+}
+
+const fieldIdRefCount = computed(() =>
+  selectedComponent.value ? countFieldIdRefs(selectedComponent.value.props?.fieldId) : 0
+);
 
 /* ─── Events (per-component) ─── */
 const currentEvents = computed(() => {
@@ -1043,12 +1194,6 @@ function onOpenDataPreview(path) {
 }
 
 function closeDataPreview() { isDataPreviewOpen.value = false; }
-
-const panelOptions = computed(() => {
-  const comp = selectedComponent.value;
-  if (!comp?.props?.panels) return [];
-  return String(comp.props.panels).split(",").map((s) => s.trim()).filter(Boolean);
-});
 
 const parsedParams = computed(() => {
   const comp = selectedComponent.value;

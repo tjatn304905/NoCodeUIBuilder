@@ -35,38 +35,44 @@
           v-if="labelIconChar"
           class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-600/55 text-sm font-semibold text-slate-100"
         >{{ labelIconChar }}</span>
-        <p class="min-w-0 flex-1 break-words leading-snug" :style="labelTextStyle">{{ component.props.text }}</p>
+        <p class="min-w-0 shrink break-words leading-snug" :style="labelTextStyle">{{ component.props.text }}</p>
       </div>
     </template>
 
     <!-- Accordion -->
     <template v-else-if="component.type === 'accordion'">
       <div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
-      <p class="mb-2 shrink-0 truncate text-xs font-semibold text-slate-200">{{ component.props.title }}</p>
-      <div class="min-h-0 flex-1 space-y-1 overflow-hidden">
-        <div v-for="panel in accordionPanels" :key="panel" class="overflow-hidden rounded border border-slate-600">
-          <div
-            class="flex items-center justify-between px-3 py-1.5 text-xs font-medium"
-            :class="panel === component.props.activePanel ? 'bg-blue-500/20 text-blue-200' : 'bg-slate-800/80 text-slate-300'"
-          >
-            <span>{{ panel }}</span>
-            <span class="text-[10px]">{{ panel === component.props.activePanel ? '\u25BE' : '\u25B8' }}</span>
-          </div>
-          <div v-if="panel === component.props.activePanel" class="border-t border-slate-600 bg-slate-900/50">
+        <p
+          class="mb-2 shrink-0 truncate text-xs font-semibold text-slate-200"
+          :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }"
+        >{{ component.props.title }}</p>
+        <!-- 패널 목록: 높이 초과 시 스크롤 -->
+        <div class="min-h-0 flex-1 space-y-1 overflow-y-auto">
+          <div v-for="panel in accordionPanels" :key="panel" class="overflow-hidden rounded border border-slate-600">
+            <!-- 패널 헤더: 클릭으로 열고 닫기 (편집·프리뷰 모두) -->
             <div
-              v-if="canDrop"
-              class="relative min-h-[2.5rem] p-2"
-              @dragover.prevent
-              @drop.stop.prevent="$emit('drop-item', $event)"
+              class="flex cursor-pointer items-center px-3 py-1.5 text-xs font-medium select-none"
+              :class="openPanels.has(`${component.id}::${panel}`) ? 'bg-blue-500/20 text-blue-200' : 'bg-slate-800/80 text-slate-300'"
+              @click.stop="togglePanel(`${component.id}::${panel}`)"
             >
-              <slot name="children" />
-              <p v-if="!children.length" class="pointer-events-none text-center text-[10px] text-slate-500">
-                Drop components for "{{ panel }}"
-              </p>
+              <span class="flex-1 truncate" :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }">{{ panel }}</span>
+              <span class="shrink-0 text-[10px] transition-transform duration-150" :class="openPanels.has(`${component.id}::${panel}`) ? 'rotate-0' : '-rotate-90'">▾</span>
+            </div>
+            <!-- 패널 콘텐츠: 열린 경우만 표시 -->
+            <div v-if="openPanels.has(`${component.id}::${panel}`)" class="border-t border-slate-600 bg-slate-900/50">
+              <div
+                class="relative min-h-[2.5rem] p-2"
+                @dragover.prevent
+                @drop.stop.prevent="$emit('drop-item', $event)"
+              >
+                <slot name="children" />
+                <p v-if="!children.length" class="pointer-events-none text-center text-[10px] text-slate-500">
+                  Drop components for "{{ panel }}"
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </template>
 
@@ -94,7 +100,8 @@
                 <th
                   v-for="col in parsedColumns"
                   :key="col.field"
-                  class="border-r border-slate-600 px-2 py-1.5 text-left font-semibold text-slate-200"
+                  class="border-r border-slate-600 px-2 py-1.5 font-semibold text-slate-200"
+                  :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }"
                 >
                   {{ col.header }}
                 </th>
@@ -110,6 +117,7 @@
                   v-for="col in parsedColumns"
                   :key="col.field"
                   class="border-r border-slate-700 px-2 py-1.5 text-slate-300"
+                  :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }"
                 >
                   {{ row[col.field] }}
                 </td>
@@ -179,90 +187,92 @@
     <!-- Text Input -->
     <template v-else-if="component.type === 'text-input'">
       <div :class="formFieldStackClass">
-      <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <input
-        :type="component.props.inputType || 'text'"
-        :placeholder="component.props.mask || component.props.placeholder || 'Enter value'"
-        class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200 placeholder:text-slate-500"
-        :class="preview ? '' : 'pointer-events-none'"
-        :readonly="preview && isLogicReadonly"
-        :value="preview ? previewFieldModel() : ''"
-        @input="onTextPreviewInput"
-      />
+        <p class="mb-1 truncate text-xs font-medium text-slate-400" :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }">{{ component.props.label }}</p>
+        <input
+          :type="component.props.inputType || 'text'"
+          :placeholder="component.props.mask || component.props.placeholder || 'Enter value'"
+          class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200 placeholder:text-slate-500"
+          :class="preview ? '' : 'pointer-events-none'"
+          :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }"
+          :readonly="preview && isLogicReadonly"
+          :value="preview ? previewFieldModel() : ''"
+          @input="onTextPreviewInput"
+        />
       </div>
     </template>
 
     <!-- Combo Box -->
     <template v-else-if="component.type === 'combo-box'">
       <div :class="formFieldStackClass">
-      <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <select
-        class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200"
-        :class="preview ? '' : 'pointer-events-none'"
-        :disabled="preview && isLogicReadonly"
-        :value="preview ? previewFieldModel() : (parseOptions(component.props.options)[0] || '')"
-        @change="onComboPreviewChange"
-      >
-        <option v-for="opt in parseOptions(component.props.options)" :key="opt" :value="opt">{{ opt }}</option>
-      </select>
+        <p class="mb-1 truncate text-xs font-medium text-slate-400" :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }">{{ component.props.label }}</p>
+        <select
+          class="h-8 w-full rounded-md border border-slate-600 bg-slate-900/55 px-2 text-xs text-slate-200"
+          :class="[preview ? '' : 'pointer-events-none', cellHVParts().justify]"
+          :disabled="preview && isLogicReadonly"
+          :value="preview ? previewFieldModel() : (parseOptions(component.props.options)[0] || '')"
+          @change="onComboPreviewChange"
+        >
+          <option v-for="opt in parseOptions(component.props.options)" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
       </div>
     </template>
 
     <!-- Radio Group -->
     <template v-else-if="component.type === 'radio-group'">
       <div :class="formFieldStackClass">
-      <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <div class="flex flex-wrap gap-3 text-xs text-slate-300">
-        <label v-for="opt in parseOptions(component.props.options)" :key="opt" class="inline-flex items-center gap-1.5" :class="preview && !isLogicReadonly ? '' : 'pointer-events-none'">
-          <input type="radio" :name="component.id" class="accent-blue-500" :disabled="preview && isLogicReadonly" />{{ opt }}
-        </label>
-      </div>
+        <p class="mb-1 truncate text-xs font-medium text-slate-400" :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }">{{ component.props.label }}</p>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-300" :class="cellHVParts().justify">
+          <label v-for="opt in parseOptions(component.props.options)" :key="opt" class="inline-flex items-center gap-1.5" :class="preview && !isLogicReadonly ? '' : 'pointer-events-none'">
+            <input type="radio" :name="component.id" class="accent-blue-500" :disabled="preview && isLogicReadonly" />{{ opt }}
+          </label>
+        </div>
       </div>
     </template>
 
     <!-- Checkbox Group -->
     <template v-else-if="component.type === 'checkbox-group'">
       <div :class="formFieldStackClass">
-      <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <div class="flex flex-wrap gap-3 text-xs text-slate-300">
-        <label v-for="opt in parseOptions(component.props.options)" :key="opt" class="inline-flex items-center gap-1.5" :class="preview && !isLogicReadonly ? '' : 'pointer-events-none'">
-          <input type="checkbox" class="accent-blue-500" :disabled="preview && isLogicReadonly" @change="onCheckboxPreviewChange" />{{ opt }}
-        </label>
-      </div>
+        <p class="mb-1 truncate text-xs font-medium text-slate-400" :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }">{{ component.props.label }}</p>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-300" :class="cellHVParts().justify">
+          <label v-for="opt in parseOptions(component.props.options)" :key="opt" class="inline-flex items-center gap-1.5" :class="preview && !isLogicReadonly ? '' : 'pointer-events-none'">
+            <input type="checkbox" class="accent-blue-500" :disabled="preview && isLogicReadonly" @change="onCheckboxPreviewChange" />{{ opt }}
+          </label>
+        </div>
       </div>
     </template>
 
     <!-- Date Picker -->
     <template v-else-if="component.type === 'date-picker'">
       <div :class="formFieldStackClass">
-      <p class="mb-1 truncate text-xs font-medium text-slate-400">{{ component.props.label }}</p>
-      <div
-        class="group relative rounded-lg border border-slate-500/45 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-[border-color,box-shadow] focus-within:border-cyan-500/40 focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_1px_rgba(34,211,238,0.12)]"
-      >
-        <input
-          ref="dateInputRef"
-          type="date"
-          :placeholder="component.props.placeholder || 'YYYY-MM-DD'"
-          class="node-date-input h-9 w-full min-w-0 rounded-lg border-0 bg-transparent py-2 pl-3 pr-10 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-0"
-          :class="[
-            preview ? '' : 'pointer-events-none',
-            preview && !isLogicReadonly ? 'cursor-pointer' : 'cursor-default'
-          ]"
-          :readonly="preview && isLogicReadonly"
-          :value="preview ? previewFieldModel() : ''"
-          @click="onDateInputClick"
-          @input="onDatePreviewInput"
-          @change="onDatePreviewInput"
-        />
-        <span
-          class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-cyan-400/85"
-          aria-hidden="true"
+        <p class="mb-1 truncate text-xs font-medium text-slate-400" :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }">{{ component.props.label }}</p>
+        <div
+          class="group relative rounded-lg border border-slate-500/45 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-[border-color,box-shadow] focus-within:border-cyan-500/40 focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_1px_rgba(34,211,238,0.12)]"
         >
-          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </span>
-      </div>
+          <input
+            ref="dateInputRef"
+            type="date"
+            :placeholder="component.props.placeholder || 'YYYY-MM-DD'"
+            class="node-date-input h-9 w-full min-w-0 rounded-lg border-0 bg-transparent py-2 pl-3 pr-10 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-0"
+            :class="[
+              preview ? '' : 'pointer-events-none',
+              preview && !isLogicReadonly ? 'cursor-pointer' : 'cursor-default'
+            ]"
+            :style="{ textAlign: hAlignToTextAlign(cellHVParts().hAlign) }"
+            :readonly="preview && isLogicReadonly"
+            :value="preview ? previewFieldModel() : ''"
+            @click="onDateInputClick"
+            @input="onDatePreviewInput"
+            @change="onDatePreviewInput"
+          />
+          <span
+            class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-cyan-400/85"
+            aria-hidden="true"
+          >
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </span>
+        </div>
       </div>
     </template>
 
@@ -274,42 +284,36 @@
       </div>
     </template>
 
-    <!-- Status Badge -->
+    <!-- Status Badge: 버튼과 동일하게 셀 전체를 채우고, 내부 텍스트 정렬만 hAlign으로 제어 -->
     <template v-else-if="component.type === 'status-badge'">
-      <div class="flex h-full min-h-0 w-full min-w-0" :class="hvCrossAxisFlexClass">
-        <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold" :class="badgeToneClass">{{ component.props.status }}</span>
-      </div>
+      <span
+        class="flex h-full w-full items-center rounded-full px-3 text-xs font-semibold"
+        :class="[badgeToneClass, cellHVParts().justify]"
+      >{{ component.props.label }}</span>
     </template>
 
-    <!-- Divider -->
+    <!-- Divider: no hAlign/vAlign (orientation drives layout) -->
     <template v-else-if="component.type === 'divider'">
-      <!--
-        Divider 배치 로직:
-        - outer root가 flex(row) + hAlign/vAlign 기반으로 위치를 잡아주고,
-        - 여기서는 라인 엘리먼트만 orientation/thickness로 크기 조절해서 렌더링합니다.
-
-        horizontal: width=100%, height=thickness, vAlign(top/middle/bottom)에 따라 y 위치
-        vertical: width=thickness, height=100%, hAlign(left/center/right)에 따라 x 위치
-      -->
       <div class="shrink-0" :style="dividerLineStyle" />
     </template>
 
-    <!-- Action Button -->
+    <!-- Action Button: 버튼 자체는 셀을 꽉 채우고, 내부 텍스트/아이콘 위치는 hAlign/vAlign으로 제어 -->
     <template v-else-if="component.type === 'action-button'">
-      <div class="flex h-full min-h-0 w-full min-w-0" :class="hvCrossAxisFlexClass">
-        <button
-          type="button"
-          class="flex h-8 w-full items-center justify-center gap-1.5 rounded-md px-4 text-xs font-semibold transition-opacity"
-          :class="preview ? 'cursor-pointer' : 'pointer-events-none'"
-          :disabled="preview && isPreviewLoading"
-          :style="{ ...buttonStyle, ...(preview && isPreviewLoading ? { opacity: 0.65 } : {}) }"
-          @click.stop="onPreviewRun('onClick', $event)"
-        >
-          <span v-if="isPreviewLoading" class="text-[10px]">…</span>
-          <span v-if="buttonIconChar" class="text-sm leading-none">{{ buttonIconChar }}</span>
-          <span>{{ component.props.text }}</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        class="flex h-full w-full items-center gap-1.5 rounded-md px-4 text-xs font-semibold transition-opacity"
+        :class="[
+          preview ? 'cursor-pointer' : 'pointer-events-none',
+          cellHVParts().justify
+        ]"
+        :disabled="preview && (isLogicReadonly || isPreviewLoading)"
+        :style="{ ...buttonStyle, ...(preview && isPreviewLoading ? { opacity: 0.65 } : {}) }"
+        @click.stop="onPreviewRun('onClick', $event)"
+      >
+        <span v-if="isPreviewLoading" class="text-[10px]">…</span>
+        <span v-if="buttonIconChar" class="text-sm leading-none">{{ buttonIconChar }}</span>
+        <span>{{ component.props.label }}</span>
+      </button>
     </template>
   </div>
 </template>
@@ -334,6 +338,15 @@ const previewCtx = inject(PREVIEW_CTX, null);
 
 const dateInputRef = ref(null);
 
+// Accordion: 어떤 패널이 열려 있는지 추적 (key = `${component.id}::${panelName}`)
+const openPanels = ref(new Set());
+
+function togglePanel(panelKey) {
+  const s = new Set(openPanels.value);
+  if (s.has(panelKey)) s.delete(panelKey);
+  else s.add(panelKey);
+  openPanels.value = s;
+}
 const logicEvalCtx = computed(() => ({
   fieldValues: previewCtx?.fieldValues || {},
   runtimeVars: previewCtx?.runtimeVars || {}
@@ -395,14 +408,21 @@ const showSelectionRing = computed(() => props.isSelected && !props.preview);
 /** hAlign = horizontal; vAlign = vertical (grid cell, flex-row semantics). */
 function cellHVParts() {
   const p = props.component.props || {};
-  const a = (p.hAlign ?? p.alignment) || "center";
-  const v = (p.vAlign ?? p.valign) || "middle";
+  const a = (p.hAlign ?? p.alignment) || "left";
+  const v = (p.vAlign ?? p.valign) || "top";
   const justifyH = { left: "justify-start", center: "justify-center", right: "justify-end" };
-  const itemsV = { top: "items-start", middle: "items-center", bottom: "items-end" };
+  const itemsV   = { top: "items-start",    middle: "items-center",   bottom: "items-end"  };
   return {
-    justify: justifyH[a] || justifyH.left,
-    items: itemsV[v] || itemsV.top
+    justify: justifyH[a] ?? "justify-start",
+    items:   itemsV[v]   ?? "items-start",
+    hAlign: a,
+    vAlign: v
   };
+}
+
+// ─── text-align helper (for CSS textAlign) ───
+function hAlignToTextAlign(h) {
+  return h === "center" ? "center" : h === "right" ? "right" : "left";
 }
 
 const SKIP_ROOT_CELL_ALIGN = new Set(["container", "label"]);
@@ -419,8 +439,18 @@ const hvCrossAxisFlexClass = computed(() => {
   return `${justify} ${items}`;
 });
 
-/** Label + control column; horizontal align in cell comes from root justify-* when content is narrower than cell. */
-const formFieldStackClass = "flex min-h-0 w-full min-w-0 flex-col gap-1";
+/**
+ * Form-field stack (text-input, combo-box, radio/checkbox-group, date-picker).
+ * hAlign controls text-align of label + content; vAlign positions the whole
+ * stack inside the cell via the root cellAlignWrapperClass flex container.
+ * width is NOT forced to full — we let the wrapper justify-* do the placement.
+ */
+const formFieldStackClass = computed(() => {
+  const { hAlign } = cellHVParts();
+  const textAlign = hAlignToTextAlign(hAlign);
+  // Always full-width so the inner input fills the cell horizontally.
+  return `flex min-h-0 w-full min-w-0 flex-col gap-1 text-${textAlign}`;
+});
 
 const dataFactLayoutClass = computed(() => {
   const p = props.component.props || {};

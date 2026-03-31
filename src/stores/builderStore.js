@@ -408,8 +408,29 @@ function updateComponentParentField(componentId, newParentFieldIdRaw) {
     if (!parentComp || !CONTAINER_TYPES.has(parentComp.type)) return;
     if (selfFid && isFieldUnderAncestor(selfFid, pid)) return;
   }
+
   target.parentFieldId = pid;
-  target.layout = resolveOverlap(target.layout, target.parentFieldId, componentId, COLS);
+
+  // 새 부모의 컬럼 수를 계산해 layout을 재정규화한다.
+  // nestedCols = floor((parentW * CELL_SIZE - 18) / CELL_SIZE)
+  // 부모가 없으면(root) 전체 COLS 기준.
+  let maxCols = COLS;
+  if (pid != null) {
+    const parentComp = componentByFieldId(pid);
+    if (parentComp) {
+      const parentW = parentComp.layout.w;
+      maxCols = Math.max(1, Math.floor((parentW * CELL_SIZE - 18) / CELL_SIZE));
+    }
+  }
+
+  // x, y를 새 부모 기준 (0, 0) 으로 초기화하고 overlap 해소
+  const resetLayout = {
+    x: 0,
+    y: 0,
+    w: Math.min(target.layout.w, maxCols),
+    h: target.layout.h
+  };
+  target.layout = resolveOverlap(resetLayout, target.parentFieldId, componentId, maxCols);
   _pushCurrentState();
 }
 
@@ -446,6 +467,104 @@ function updateProp(key, value) {
     return;
   }
   state.components[idx].props[key] = value;
+}
+
+/**
+ * Rename a fieldId with full global search-and-replace:
+ *  - Updates the component's own props.fieldId
+ *  - Re-links all parentFieldId references (children)
+ *  - Replaces $oldId.value → $newId.value in every component's
+ *    hiddenCon, readonlyCon, and all event action values/params
+ *
+ * Returns { ok: boolean, reason?: string }
+ */
+function renameFieldId(oldFid, newFid) {
+  const trimOld = String(oldFid ?? "").trim();
+  const trimNew = String(newFid ?? "").trim();
+  if (!trimOld || !trimNew || trimOld === trimNew) return { ok: false, reason: "same" };
+
+  // 1. Duplicate check
+  const alreadyExists = state.components.some(
+    (c) => c.props?.fieldId === trimNew
+  );
+  if (alreadyExists) return { ok: false, reason: "duplicate" };
+
+  // 2. Update owning component
+  const owner = state.components.find((c) => c.props?.fieldId === trimOld);
+  if (!owner) return { ok: false, reason: "notfound" };
+  owner.props.fieldId = trimNew;
+
+  // 3. Re-link children's parentFieldId
+  for (const c of state.components) {
+    if (normalizeParentFieldId(c.parentFieldId) === trimOld) c.parentFieldId = trimNew;
+  }
+
+  // 4. Global string replace: $oldFid.value → $newFid.value in all text fields
+  const from = `$${trimOld}.value`;
+  const to   = `$${trimNew}.value`;
+
+  function replaceInStr(s) {
+    if (typeof s !== "string" || !s.includes(from)) return s;
+    return s.split(from).join(to);
+  }
+
+  function replaceInActions(actions) {
+    if (!Array.isArray(actions)) return actions;
+    return actions.map((a) => {
+      if (!a || typeof a !== "object") return a;
+      const copy = { ...a };
+      if (typeof copy.value  === "string") copy.value  = replaceInStr(copy.value);
+      if (typeof copy.params === "string") copy.params = replaceInStr(copy.params);
+      if (typeof copy.message=== "string") copy.message= replaceInStr(copy.message);
+      return copy;
+    });
+  }
+
+  for (const c of state.components) {
+    const p = c.props;
+    if (!p) continue;
+    if (typeof p.hiddenCon   === "string") p.hiddenCon   = replaceInStr(p.hiddenCon);
+    if (typeof p.readonlyCon === "string") p.readonlyCon = replaceInStr(p.readonlyCon);
+    if (p.events) {
+      for (const trigger of ["onPageLoad", "onClick", "onChange"]) {
+        if (p.events[trigger]) p.events[trigger] = replaceInActions(p.events[trigger]);
+      }
+    }
+  }
+
+  _pushCurrentState();
+  return { ok: true };
+}
+
+/**
+ * Count how many OTHER components reference a given fieldId
+ * (in parentFieldId, hiddenCon, readonlyCon, event params/values).
+ */
+function countFieldIdRefs(fid) {
+  const trimFid = String(fid ?? "").trim();
+  if (!trimFid) return 0;
+  const token = `$${trimFid}.value`;
+  let count = 0;
+  for (const c of state.components) {
+    if (c.props?.fieldId === trimFid) continue; // skip self
+    if (normalizeParentFieldId(c.parentFieldId) === trimFid) { count++; continue; }
+    const p = c.props;
+    if (!p) continue;
+    let hit = false;
+    if (typeof p.hiddenCon   === "string" && p.hiddenCon.includes(token))   hit = true;
+    if (typeof p.readonlyCon === "string" && p.readonlyCon.includes(token)) hit = true;
+    if (!hit && p.events) {
+      outer: for (const trigger of ["onPageLoad", "onClick", "onChange"]) {
+        for (const a of p.events[trigger] ?? []) {
+          if (typeof a?.value  === "string" && a.value.includes(token))  { hit = true; break outer; }
+          if (typeof a?.params === "string" && a.params.includes(token)) { hit = true; break outer; }
+          if (typeof a?.message=== "string" && a.message.includes(token)){ hit = true; break outer; }
+        }
+      }
+    }
+    if (hit) count++;
+  }
+  return count;
 }
 
 /** Undoable version — updates prop then records snapshot */
@@ -758,6 +877,8 @@ export function useBuilderStore() {
     addComponent,
     updateProp,
     updatePropUndoable,
+    renameFieldId,
+    countFieldIdRefs,
     typeLabel,
     checkOverlap,
     rebuildRuntimeVars,
