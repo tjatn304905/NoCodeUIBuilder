@@ -39,8 +39,8 @@
           <option v-for="t in DEMO_TEMPLATES" :key="t.key" :value="t.key">{{ t.label }}</option>
         </select>
         <div class="h-5 w-px bg-slate-700" />
-        <!-- Import JSON -->
-        <button class="flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="onImportJson" title="Import JSON file">
+        <!-- Import -->
+        <button class="flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100" @click="openImportChooser" title="Import options">
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -54,16 +54,6 @@
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
           </svg>   
           Export
-        </button>
-        <div class="h-5 w-px bg-slate-700" />
-        <!-- AI Build -->
-        <button
-          class="flex items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-medium text-cyan-200 transition-colors hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-          @click="aiOpen = true"
-          :disabled="aiBusy"
-          title="Generate/Update layout using AI"
-        >
-          AI
         </button>
         <div class="h-5 w-px bg-slate-700" />
         <!-- Save -->
@@ -248,14 +238,13 @@
         <div class="h-[calc(100%-73px)] overflow-y-auto p-4">
           <div v-if="selectedComponent" :key="selectedComponent.id">
             <div class="space-y-3">
+              <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
+
               <!-- Schema: 5 common attributes -->
               <div class="rounded-md border border-slate-600/80 bg-slate-800/60 p-2">
                 <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Component identity</p>
-                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">compId</span>
-                  <input type="text" readonly class="h-8 w-full cursor-not-allowed rounded-md border border-slate-600 bg-slate-900/80 px-2 font-mono text-[11px] text-slate-400" :value="selectedComponent.compId || ''" />
-                </label>
-                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">parentId</span>
-                  <select class="h-8 w-full rounded-md border border-slate-600 bg-slate-800 px-2 text-xs text-slate-100" :value="selectedComponent.parentId || ''" @change="onParentChange($event)">
+                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">Parent (fieldId)</span>
+                  <select class="h-8 w-full rounded-md border border-slate-600 bg-slate-800 px-2 text-xs text-slate-100" :value="selectedComponent.parentFieldId || ''" @change="onParentChange($event)">
                     <option v-for="opt in parentSelectOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                   </select>
                 </label>
@@ -310,7 +299,6 @@
                 </label>
               </div>
 
-              <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
               <template v-if="selectedComponent.type !== 'container'">
                 <FieldText v-if="selectedComponent.type !== 'label'" label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
                 <FieldSelect label="Horizontal align" :model-value="selectedComponent.props.hAlign" :options="['left','center','right']" @update:model-value="(v) => p('hAlign', v)" />
@@ -523,6 +511,37 @@
       </div>
     </div>
 
+    <!-- Import Chooser Modal -->
+    <div v-if="importChooserOpen" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4" @click.self="importChooserOpen = false">
+      <div class="w-full max-w-md overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl" @click.stop>
+        <div class="border-b border-slate-700 px-4 py-3">
+          <h3 class="text-sm font-semibold text-slate-100">Import</h3>
+          <p class="mt-1 text-xs text-slate-400">Choose how to create or load your screen.</p>
+        </div>
+        <div class="space-y-2 p-4">
+          <button
+            class="flex w-full items-center gap-3 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-left text-xs text-slate-200 transition-colors hover:border-blue-400 hover:bg-slate-700"
+            @click="chooseImportJson"
+          >
+            <svg class="h-4 w-4 text-blue-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 12l-4-4m4 4l4-4M4 20h16" />
+            </svg>
+            <span class="font-medium">Import JSON File</span>
+          </button>
+          <button
+            class="flex w-full items-center gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-left text-xs text-cyan-200 transition-colors hover:bg-cyan-500/20"
+            :disabled="aiBusy"
+            @click="chooseImportAi"
+          >
+            <svg class="h-4 w-4 text-cyan-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 3.7L18 8.5l-3 2.9.7 4.1L12 13.8l-3.7 1.7.7-4.1-3-2.9 4.2-1.8L12 3z" />
+            </svg>
+            <span class="font-medium">Build with AI</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- JSON Export Modal -->
     <div v-if="showExport" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4" @click.self="showExport = false">
       <div class="w-full max-w-4xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
@@ -595,9 +614,9 @@ const {
   runtimeVars, fieldValues, loadingByComponent,
   addLogicVariable, removeLogicVariable, updateLogicVariable,
   addOrderEvent, removeOrderEvent,
-  updateGridPosRect, updateComponentParent,
+  updateGridPosRect, updateComponentParentField,
   saveToLocalStorage,
-  clearAll, exportToFile, importFromFile, loadTemplate,
+  clearAll, exportToFile, importFromFile, loadTemplate, serializeStateForExport,
   undo, redo, canUndo, canRedo, commitSnapshot
 } = store;
 
@@ -652,9 +671,23 @@ function onClear() {
   showToast("Canvas cleared.", "info");
 }
 
-async function onImportJson() {
+async function onImportJsonFile() {
   const ok = await importFromFile();
   showToast(ok ? "JSON imported successfully!" : "Import failed — invalid file.", ok ? "success" : "error");
+}
+
+function openImportChooser() {
+  importChooserOpen.value = true;
+}
+
+async function chooseImportJson() {
+  importChooserOpen.value = false;
+  await onImportJsonFile();
+}
+
+function chooseImportAi() {
+  importChooserOpen.value = false;
+  aiOpen.value = true;
 }
 
 function onExportJson() {
@@ -729,7 +762,9 @@ const parentSelectOptions = computed(() => {
   for (const c of state.components) {
     if (c.id === sel.id) continue;
     if (!CONTAINER_TYPES.has(c.type)) continue;
-    out.push({ value: c.id, label: `${typeLabel(c.type)} — ${c.id}` });
+    const fid = c.props?.fieldId;
+    if (fid == null || String(fid).trim() === "") continue;
+    out.push({ value: String(fid).trim(), label: `${typeLabel(c.type)} — ${String(fid).trim()}` });
   }
   return out;
 });
@@ -737,7 +772,7 @@ const parentSelectOptions = computed(() => {
 function onParentChange(ev) {
   const c = selectedComponent.value;
   if (!c) return;
-  updateComponentParent(c.id, ev.target.value || null);
+  updateComponentParentField(c.id, ev.target.value || null);
 }
 
 const layoutEditor = computed(() => {
@@ -919,6 +954,7 @@ watch(previewMode, async (on) => {
 
 /* ─── Misc state ─── */
 const showExport = ref(false);
+const importChooserOpen = ref(false);
 const isDataPreviewOpen = ref(false);
 const activeDataPath = ref("");
 const dataPreviewViewMode = ref("json");
@@ -930,26 +966,42 @@ const aiUserPrompt = ref("");
 const aiBusy = ref(false);
 
 const jsonExport = computed(() => {
-  const data = store.serializeState();
+  const data = serializeStateForExport();
   return JSON.stringify(data, null, 2);
 });
+
+function treeParentGroupKey(c) {
+  const pf = c.parentFieldId;
+  if (pf == null || pf === "") return "__root__";
+  return String(pf);
+}
 
 const nodeTreeItems = computed(() => {
   const byParent = new Map();
   for (const c of state.components) {
-    const key = c.parentId ?? "__root__";
+    const key = treeParentGroupKey(c);
     if (!byParent.has(key)) byParent.set(key, []);
     byParent.get(key).push(c);
   }
-  for (const [, items] of byParent) items.sort((a, b) => (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x));
+  for (const [, items] of byParent) {
+    items.sort((a, b) => (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x) || String(a.id).localeCompare(String(b.id)));
+  }
   const out = [];
-  function walk(parentId, depth) {
-    for (const c of (byParent.get(parentId ?? "__root__") || [])) {
-      out.push({ id: c.id, depth, label: `${typeLabel(c.type)} (${c.id})` });
-      walk(c.id, depth + 1);
+  function walk(parentFieldKey, depth) {
+    const groupKey = parentFieldKey ?? "__root__";
+    for (const c of byParent.get(groupKey) || []) {
+      const fid = c.props?.fieldId;
+      const fidPart = fid != null && String(fid).trim() !== "" ? String(fid).trim() : null;
+      out.push({
+        id: c.id,
+        depth,
+        label: fidPart ? `${typeLabel(c.type)} — ${fidPart}` : typeLabel(c.type)
+      });
+      const childKey = fid != null && String(fid).trim() !== "" ? String(fid).trim() : null;
+      if (childKey && byParent.has(childKey)) walk(childKey, depth + 1);
     }
   }
-  walk(null, 0);
+  walk("__root__", 0);
   return out;
 });
 

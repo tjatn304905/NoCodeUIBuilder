@@ -9,17 +9,19 @@
     />
 
     <div
+      ref="nodeRef"
       class="absolute select-none"
       :class="nodeZClass"
       :style="elementStyle"
       @pointerdown.stop="onPointerDown"
       @click.stop="onClickNode"
     >
-      <!-- Action toolbar -->
-      <div
-        v-if="isSelected && !isDragging && !isResizing"
-        class="absolute -top-7 right-0 z-50 flex items-center gap-1"
-      >
+      <Teleport to="body">
+        <div
+          v-if="showFloatingToolbar"
+          class="fixed z-[80] flex items-center gap-1"
+          :style="floatingToolbarStyle"
+        >
         <button
           v-if="dataPathForPreview"
           class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-100 shadow hover:bg-slate-700"
@@ -50,7 +52,8 @@
         >
           ✕
         </button>
-      </div>
+        </div>
+      </Teleport>
 
       <!-- Resize handles -->
       <template v-if="isSelected && !isDragging">
@@ -111,7 +114,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { CONTAINER_TYPES, CELL_SIZE } from "../data/componentCatalog";
 import { useBuilderStore } from "../stores/builderStore";
 import NodeBody from "./NodeBody.vue";
@@ -146,10 +149,17 @@ const ghostX = ref(0);
 const ghostY = ref(0);
 const ghostW = ref(0);
 const ghostH = ref(0);
+const nodeRef = ref(null);
+const floatingToolbar = ref({ left: 0, top: 0, visible: false });
 
 const isSelected = computed(() => store.selectedId.value === props.component.id);
 const isContainer = computed(() => CONTAINER_TYPES.has(props.component.type));
-const childComponents = computed(() => store.getChildren(props.component.id));
+const childComponents = computed(() => {
+  if (!isContainer.value) return [];
+  const fid = props.component.props?.fieldId;
+  if (fid == null || String(fid).trim() === "") return [];
+  return store.getChildren(String(fid).trim());
+});
 const dataPathForPreview = computed(() => {
   const p = props.component.props || {};
   return p.dataSourcePath || p.valuePath || p.dataPath || "";
@@ -183,8 +193,13 @@ const nestedCols = computed(() => {
 
 const nestedRows = computed(() => {
   const type = props.component.type;
-  // Container has no internal grid header — use full layout height so children reach the dashed drop zone bottom.
-  if (type === "container") return Math.max(1, layout.value.h);
+  // Container children must stay within inner drop zone (respect container padding).
+  if (type === "container") {
+    const rawPad = Number(props.component.props?.padding);
+    const pad = Number.isFinite(rawPad) && rawPad >= 0 ? rawPad : 12;
+    const innerHeightPx = Math.max(CELL_SIZE, hPx.value - pad * 2);
+    return Math.max(1, Math.floor(innerHeightPx / CELL_SIZE));
+  }
   if (type === "accordion") return Math.max(1, layout.value.h - 5);
   return Math.max(1, layout.value.h - 3);
 });
@@ -224,13 +239,37 @@ const ghostOverlaps = computed(() => {
   if (!isDragging.value && !isResizing.value) return false;
   return store.checkOverlap(
     { x: ghostX.value, y: ghostY.value, w: ghostW.value, h: ghostH.value },
-    props.component.parentId,
+    props.component.parentFieldId,
     props.component.id
   );
 });
 
+const showFloatingToolbar = computed(
+  () => floatingToolbar.value.visible && isSelected.value && !isDragging.value && !isResizing.value && !previewMode.value
+);
+
+const floatingToolbarStyle = computed(() => ({
+  left: `${floatingToolbar.value.left}px`,
+  top: `${floatingToolbar.value.top}px`,
+  transform: "translateX(-100%)"
+}));
+
+function updateFloatingToolbarPosition() {
+  if (!nodeRef.value || !isSelected.value || isDragging.value || isResizing.value || previewMode.value) {
+    floatingToolbar.value.visible = false;
+    return;
+  }
+  const rect = nodeRef.value.getBoundingClientRect();
+  floatingToolbar.value = {
+    left: rect.right,
+    top: Math.max(8, rect.top - 28),
+    visible: true
+  };
+}
+
 function onClickNode() {
   store.selectComponent(props.component.id);
+  nextTick(updateFloatingToolbarPosition);
 }
 
 function onPointerDown(e) {
@@ -260,6 +299,7 @@ function onPointerDown(e) {
     ghostY.value = Math.max(0, Math.min(props.rows - orig.h, Math.round(rawY / CELL_SIZE)));
     ghostW.value = orig.w;
     ghostH.value = orig.h;
+    updateFloatingToolbarPosition();
   }
 
   function onUp() {
@@ -333,6 +373,7 @@ function onResizeStart(e, handle) {
     ghostY.value = ny;
     ghostW.value = nw;
     ghostH.value = nh;
+    updateFloatingToolbarPosition();
   }
 
   function onUp() {
@@ -371,4 +412,23 @@ function dropIntoContainer(event) {
   const rawY = (event.clientY - rect.top) / CELL_SIZE;
   store.addComponent(type, props.component.id, rawX, rawY, nestedCols.value);
 }
+
+watch(
+  () => [isSelected.value, isDragging.value, isResizing.value, previewMode.value, layout.value.x, layout.value.y, layout.value.w, layout.value.h],
+  async () => {
+    await nextTick();
+    updateFloatingToolbarPosition();
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
+  window.addEventListener("scroll", updateFloatingToolbarPosition, true);
+  window.addEventListener("resize", updateFloatingToolbarPosition);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("scroll", updateFloatingToolbarPosition, true);
+  window.removeEventListener("resize", updateFloatingToolbarPosition);
+});
 </script>

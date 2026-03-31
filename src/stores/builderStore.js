@@ -1,5 +1,5 @@
 import { reactive, ref, computed } from "vue";
-import { COMPONENT_CATALOG, COLS, CELL_SIZE, CANVAS_WIDTH, DEFAULT_CONTAINER_BG } from "../data/componentCatalog";
+import { COMPONENT_CATALOG, COLS, CELL_SIZE, CANVAS_WIDTH, DEFAULT_CONTAINER_BG, CONTAINER_TYPES } from "../data/componentCatalog";
 import { parseInitialValue, runActionChain } from "../runtime/runtimeEngine";
 import { useHistoryManager } from "./historyManager";
 
@@ -43,8 +43,13 @@ const selectedComponent = computed(() => {
   return state.components.find((c) => c.id === selectedId.value) ?? null;
 });
 
+function normalizeParentFieldId(v) {
+  if (v == null || v === "") return null;
+  return String(v);
+}
+
 const rootComponents = computed(() =>
-  state.components.filter((c) => c.parentId === null)
+  state.components.filter((c) => normalizeParentFieldId(c.parentFieldId) === null)
 );
 
 const MIN_CANVAS_ROWS = 80;
@@ -52,7 +57,7 @@ const MIN_CANVAS_ROWS = 80;
 const canvasRows = computed(() => {
   let maxBottom = MIN_CANVAS_ROWS;
   for (const c of state.components) {
-    if (c.parentId === null) {
+    if (normalizeParentFieldId(c.parentFieldId) === null) {
       const bottom = c.layout.y + c.layout.h;
       if (bottom > maxBottom) maxBottom = bottom;
     }
@@ -94,7 +99,10 @@ function _pushCurrentState() {
 function _restoreSnapshot(snap) {
   if (!snap) return;
   state.screenName = snap.screenName ?? "Canvas";
-  state.components = snap.components ?? [];
+  const comps = snap.components ?? [];
+  migrateLegacyParentId(comps);
+  for (const c of comps) ensureComponentSchema(c);
+  state.components = comps;
   state.logic.variables = snap.logic?.variables ?? [];
   state.logic.orderEvents = snap.logic?.orderEvents ?? [];
   state.logic.activeScreen = snap.logic?.activeScreen ?? "default";
@@ -170,7 +178,7 @@ function commitSnapshot() {
   _pushCurrentState();
 }
 
-function createComponent(type, parentId, layout, extraProps = {}) {
+function createComponent(type, parentFieldId, layout, extraProps = {}) {
   const id = `cmp_${uid++}`;
   const descriptor = findDescriptor(type);
   const layoutCopy = { ...layout };
@@ -178,7 +186,7 @@ function createComponent(type, parentId, layout, extraProps = {}) {
     id,
     compId: newCompUuid(),
     type,
-    parentId,
+    parentFieldId: normalizeParentFieldId(parentFieldId),
     layout: layoutCopy,
     props: {
       fieldId: extraProps.fieldId ?? `${type.replaceAll("-", "_")}_${id}`,
@@ -200,8 +208,32 @@ function createComponent(type, parentId, layout, extraProps = {}) {
   return comp;
 }
 
+function migrateLegacyParentId(comps) {
+  if (!Array.isArray(comps)) return;
+  const byId = new Map();
+  for (const c of comps) {
+    if (c && typeof c.id === "string") byId.set(c.id, c);
+  }
+  for (const c of comps) {
+    if (!c || typeof c !== "object") continue;
+    if (!Object.prototype.hasOwnProperty.call(c, "parentId")) continue;
+    if (c.parentId == null || c.parentId === "") {
+      c.parentFieldId = null;
+    } else {
+      const p = byId.get(c.parentId);
+      const pf = p?.props?.fieldId;
+      c.parentFieldId = typeof pf === "string" && pf.trim() ? pf.trim() : null;
+    }
+    delete c.parentId;
+  }
+}
+
 function ensureComponentSchema(comp) {
   if (!comp.compId) comp.compId = newCompUuid();
+  comp.parentFieldId = normalizeParentFieldId(comp.parentFieldId);
+  if (Object.prototype.hasOwnProperty.call(comp, "parentId")) {
+    delete comp.parentId;
+  }
   if (comp.gridPos && comp.layout) {
     delete comp.gridPos;
   } else if (comp.gridPos && !comp.layout) {
@@ -245,8 +277,12 @@ function init() {
   history.pushState(_takeSnapshot());
 }
 
-function getChildren(parentId) {
-  return state.components.filter((c) => c.parentId === parentId);
+function getChildren(parentFieldIdKey) {
+  const key = normalizeParentFieldId(parentFieldIdKey);
+  if (key === null) {
+    return state.components.filter((c) => normalizeParentFieldId(c.parentFieldId) === null);
+  }
+  return state.components.filter((c) => normalizeParentFieldId(c.parentFieldId) === key);
 }
 
 function selectComponent(id) { selectedId.value = id; }
@@ -255,9 +291,16 @@ function deselectAll() { selectedId.value = null; }
 function deleteComponent(id) {
   if (!confirm("Are you sure you want to delete this component?")) return;
   const idsToRemove = new Set();
-  function collect(pid) {
-    idsToRemove.add(pid);
-    state.components.filter((c) => c.parentId === pid).forEach((c) => collect(c.id));
+  function collect(compId) {
+    const node = state.components.find((c) => c.id === compId);
+    if (!node || idsToRemove.has(compId)) return;
+    idsToRemove.add(compId);
+    const fid = node.props?.fieldId;
+    const nf = normalizeParentFieldId(fid);
+    if (nf === null) return;
+    for (const c of state.components) {
+      if (normalizeParentFieldId(c.parentFieldId) === nf) collect(c.id);
+    }
   }
   collect(id);
   state.components = state.components.filter((c) => !idsToRemove.has(c.id));
@@ -269,15 +312,17 @@ function rectsOverlap(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-function checkOverlap(layout, parentId, excludeId) {
+function checkOverlap(layout, parentFieldId, excludeId) {
+  const pf = normalizeParentFieldId(parentFieldId);
   return state.components
-    .filter((c) => c.parentId === parentId && c.id !== excludeId)
+    .filter((c) => normalizeParentFieldId(c.parentFieldId) === pf && c.id !== excludeId)
     .some((s) => rectsOverlap(layout, s.layout));
 }
 
-function resolveOverlap(layout, parentId, excludeId, maxCols, maxRows = 9999) {
+function resolveOverlap(layout, parentFieldId, excludeId, maxCols, maxRows = 9999) {
+  const pf = normalizeParentFieldId(parentFieldId);
   const siblings = state.components.filter(
-    (c) => c.parentId === parentId && c.id !== excludeId
+    (c) => normalizeParentFieldId(c.parentFieldId) === pf && c.id !== excludeId
   );
   if (siblings.length === 0) return layout;
   const { w, h } = layout;
@@ -307,7 +352,7 @@ function updateLayout(componentId, patch, maxCols = COLS, maxRows = 9999) {
   nl.y = Math.max(0, nl.y);
   if (nl.x + nl.w > maxCols) nl.w = Math.max(1, maxCols - nl.x);
   if (nl.y + nl.h > maxRows) nl.y = Math.max(0, maxRows - nl.h);
-  target.layout = resolveOverlap(nl, target.parentId, componentId, maxCols, maxRows);
+  target.layout = resolveOverlap(nl, target.parentFieldId, componentId, maxCols, maxRows);
 
   // After a drag/resize that was started with recordBeforeMove(),
   // push the resulting state so undo has "before" AND "after".
@@ -328,40 +373,59 @@ function updateGridPosRect(componentId, patch, maxCols = COLS) {
     w: Math.max(1, Number(merged.w) || 1),
     h: Math.max(1, Number(merged.h) || 1)
   };
-  const resolved = resolveOverlap(layout, target.parentId, componentId, maxCols);
+  const resolved = resolveOverlap(layout, target.parentFieldId, componentId, maxCols);
   target.layout = resolved;
   _pushCurrentState();
 }
 
-function isDescendantOf(ancestorId, nodeId) {
-  let cur = state.components.find((c) => c.id === nodeId);
-  while (cur?.parentId) {
-    if (cur.parentId === ancestorId) return true;
-    cur = state.components.find((c) => c.id === cur.parentId);
+function componentByFieldId(fieldId) {
+  const fid = normalizeParentFieldId(fieldId);
+  if (fid === null) return null;
+  return state.components.find((c) => c.props?.fieldId === fid) ?? null;
+}
+
+/** True if `startFieldId` is a descendant of `ancestorFieldId` (walks parentFieldId chain). */
+function isFieldUnderAncestor(ancestorFieldId, startFieldId) {
+  const root = normalizeParentFieldId(ancestorFieldId);
+  let cur = normalizeParentFieldId(startFieldId);
+  const seen = new Set();
+  while (cur != null) {
+    if (cur === root) return true;
+    if (seen.has(cur)) break;
+    seen.add(cur);
+    const node = componentByFieldId(cur);
+    if (!node) break;
+    cur = normalizeParentFieldId(node.parentFieldId);
   }
   return false;
 }
 
-function updateComponentParent(componentId, newParentId) {
+function updateComponentParentField(componentId, newParentFieldIdRaw) {
   const target = state.components.find((c) => c.id === componentId);
   if (!target) return;
-  const pid = newParentId === "" || newParentId == null ? null : newParentId;
-  if (pid === componentId) return;
-  if (pid && isDescendantOf(componentId, pid)) return;
-  target.parentId = pid;
-  target.layout = resolveOverlap(target.layout, target.parentId, componentId, COLS);
+  const pid = normalizeParentFieldId(newParentFieldIdRaw);
+  const selfFid = target.props?.fieldId;
+  if (pid != null && selfFid && pid === selfFid) return;
+  if (pid != null) {
+    const parentComp = componentByFieldId(pid);
+    if (!parentComp || !CONTAINER_TYPES.has(parentComp.type)) return;
+    if (selfFid && isFieldUnderAncestor(selfFid, pid)) return;
+  }
+  target.parentFieldId = pid;
+  target.layout = resolveOverlap(target.layout, target.parentFieldId, componentId, COLS);
   _pushCurrentState();
 }
 
-function addComponent(type, parentId, rawX, rawY, maxCols = COLS) {
+function addComponent(type, parentFieldId, rawX, rawY, maxCols = COLS) {
   const descriptor = findDescriptor(type);
   if (!descriptor) return null;
   const defW = Math.min(maxCols, descriptor.defaultSize.w);
   const defH = descriptor.defaultSize.h;
   const x = Math.max(0, Math.min(maxCols - defW, Math.round(rawX)));
   const y = Math.max(0, Math.round(rawY));
-  const layout = resolveOverlap({ x, y, w: defW, h: defH }, parentId, null, maxCols);
-  const comp = createComponent(type, parentId, layout);
+  const pf = normalizeParentFieldId(parentFieldId);
+  const layout = resolveOverlap({ x, y, w: defW, h: defH }, pf, null, maxCols);
+  const comp = createComponent(type, pf, layout);
   ensureComponentSchema(comp);
   state.components.push(comp);
   selectedId.value = comp.id;
@@ -372,6 +436,18 @@ function addComponent(type, parentId, rawX, rawY, maxCols = COLS) {
 function updateProp(key, value) {
   const idx = state.components.findIndex((c) => c.id === selectedId.value);
   if (idx === -1) return;
+  if (key === "fieldId") {
+    const oldFid = state.components[idx].props.fieldId;
+    state.components[idx].props[key] = value;
+    const oldN = normalizeParentFieldId(oldFid);
+    const newN = normalizeParentFieldId(value);
+    if (oldN != null && newN != null && oldN !== newN) {
+      for (const c of state.components) {
+        if (normalizeParentFieldId(c.parentFieldId) === oldN) c.parentFieldId = newN;
+      }
+    }
+    return;
+  }
   state.components[idx].props[key] = value;
 }
 
@@ -520,10 +596,19 @@ function serializeState() {
       id: c.id,
       compId: c.compId,
       type: c.type,
-      parentId: c.parentId,
+      parentFieldId: normalizeParentFieldId(c.parentFieldId),
       layout: { ...c.layout },
       props: JSON.parse(JSON.stringify(c.props))
     }))
+  };
+}
+
+/** Omits `compId` (runtime-only / integration id) — use for on-screen JSON preview & copy. */
+function serializeStateForExport() {
+  const data = serializeState();
+  return {
+    ...data,
+    components: data.components.map(({ compId: _omit, ...rest }) => rest)
   };
 }
 
@@ -552,6 +637,7 @@ function hydrateState(json) {
     /* Components */
     if (Array.isArray(json.components)) {
       const comps = JSON.parse(JSON.stringify(json.components));
+      migrateLegacyParentId(comps);
       for (const c of comps) ensureComponentSchema(c);
       state.components = comps;
     }
@@ -719,9 +805,10 @@ export function useBuilderStore() {
     removeOrderEvent,
     updateOrderEvent,
     updateGridPosRect,
-    updateComponentParent,
+    updateComponentParentField,
     /* Persistence & Serialization */
     serializeState,
+    serializeStateForExport,
     hydrateState,
     saveToLocalStorage,
     loadFromLocalStorage,
