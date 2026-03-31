@@ -56,6 +56,16 @@
           Export
         </button>
         <div class="h-5 w-px bg-slate-700" />
+        <!-- AI Build -->
+        <button
+          class="flex items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-medium text-cyan-200 transition-colors hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+          @click="aiOpen = true"
+          :disabled="aiBusy"
+          title="Generate/Update layout using AI"
+        >
+          AI
+        </button>
+        <div class="h-5 w-px bg-slate-700" />
         <!-- Save -->
         <button class="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-500" @click="onSave" title="Save to browser storage">
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
@@ -237,11 +247,6 @@
         </div>
         <div class="h-[calc(100%-73px)] overflow-y-auto p-4">
           <div v-if="selectedComponent" :key="selectedComponent.id">
-            <div class="mb-3 flex items-center justify-between rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5">
-              <span class="text-xs font-medium text-slate-100">{{ typeLabel(selectedComponent.type) }}</span>
-              <button class="rounded px-1.5 py-0.5 text-[10px] text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300" @click="deleteComponent(selectedComponent.id)">Delete</button>
-            </div>
-
             <div class="space-y-3">
               <!-- Schema: 5 common attributes -->
               <div class="rounded-md border border-slate-600/80 bg-slate-800/60 p-2">
@@ -255,11 +260,43 @@
                   </select>
                 </label>
                 <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">layout (grid cells)</p>
-                <div class="grid grid-cols-2 gap-2">
-                  <FieldNumber label="x" :model-value="layoutEditor.x" @update:model-value="(v) => patchGridPos({ x: v })" />
-                  <FieldNumber label="y" :model-value="layoutEditor.y" @update:model-value="(v) => patchGridPos({ y: v })" />
-                  <FieldNumber label="w" :model-value="layoutEditor.w" @update:model-value="(v) => patchGridPos({ w: v })" />
-                  <FieldNumber label="h" :model-value="layoutEditor.h" @update:model-value="(v) => patchGridPos({ h: v })" />
+                <div class="grid grid-cols-4 items-center gap-1.5">
+                  <label class="flex items-center gap-1">
+                    <span class="text-[9px] text-slate-500">x</span>
+                    <input
+                      type="number"
+                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
+                      :value="layoutEditor.x"
+                      @input="patchGridPos({ x: Number(($event.target).value) })"
+                    />
+                  </label>
+                  <label class="flex items-center gap-1">
+                    <span class="text-[9px] text-slate-500">y</span>
+                    <input
+                      type="number"
+                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
+                      :value="layoutEditor.y"
+                      @input="patchGridPos({ y: Number(($event.target).value) })"
+                    />
+                  </label>
+                  <label class="flex items-center gap-1">
+                    <span class="text-[9px] text-slate-500">w</span>
+                    <input
+                      type="number"
+                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
+                      :value="layoutEditor.w"
+                      @input="patchGridPos({ w: Number(($event.target).value) })"
+                    />
+                  </label>
+                  <label class="flex items-center gap-1">
+                    <span class="text-[9px] text-slate-500">h</span>
+                    <input
+                      type="number"
+                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
+                      :value="layoutEditor.h"
+                      @input="patchGridPos({ h: Number(($event.target).value) })"
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -500,6 +537,42 @@
         <pre class="max-h-[70vh] overflow-auto bg-slate-950 p-4 text-xs text-emerald-300">{{ jsonExport }}</pre>
       </div>
     </div>
+
+    <!-- AI Build Modal -->
+    <div v-if="aiOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" @click.self="aiOpen = false">
+      <div class="w-full max-w-3xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl" @click.stop>
+        <div class="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+          <h3 class="text-sm font-semibold text-slate-100">AI Screen Builder</h3>
+          <button class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800" @click="aiOpen = false">Close</button>
+        </div>
+        <div class="space-y-3 p-4">
+          <p class="text-xs text-slate-400">
+            Describe what you want. Example: &quot;가입자를 조회하는 화면을 만들어줘. 전화번호를 검색하면 사용자의 이름과 요금제 정보를 보여줘.&quot;
+          </p>
+          <textarea
+            v-model="aiUserPrompt"
+            rows="7"
+            class="w-full rounded border border-slate-600 bg-slate-950 px-3 py-2 font-mono text-[12px] text-slate-200 outline-none focus:border-cyan-500/50"
+            placeholder="Enter your request (Korean is fine)..."
+          />
+          <div class="flex items-center justify-end gap-2">
+            <p v-if="aiBusy" class="mr-auto text-xs text-cyan-300/90">
+              AI is generating your screen...
+            </p>
+            <button class="rounded border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800" @click="aiOpen = false" :disabled="aiBusy">
+              Cancel
+            </button>
+            <button
+              class="rounded bg-cyan-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+              @click="onRunAI"
+              :disabled="aiBusy"
+            >
+              {{ aiBusy ? "Generating..." : "Run AI" }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -511,6 +584,8 @@ import { DEMO_TEMPLATES } from "../data/demoTemplates";
 import { useBuilderStore } from "../stores/builderStore";
 import { PREVIEW_CTX } from "../runtime/previewContext";
 import { getPath } from "../runtime/runtimeEngine";
+import { generateScreenFromPrompt } from "../ai/fakeAIService";
+import { validateAndNormalizeBuilderState } from "../ai/builderStateValidator";
 
 const store = useBuilderStore();
 const {
@@ -607,6 +682,35 @@ function copyJsonExport() {
     () => showToast("JSON copied to clipboard!", "success"),
     () => showToast("Copy failed.", "error")
   );
+}
+
+async function onRunAI() {
+  const userText = String(aiUserPrompt.value ?? "").trim();
+  if (!userText) {
+    showToast("AI prompt를 입력해주세요.", "error", 3500);
+    return;
+  }
+  if (aiBusy.value) return;
+
+  aiBusy.value = true;
+  try {
+    const parsed = await generateScreenFromPrompt(userText);
+
+    const validation = validateAndNormalizeBuilderState(parsed);
+    if (!validation.ok) {
+      const previewIssues = (validation.issues || []).slice(0, 6).join("\n- ");
+      showToast(`AI JSON 검증 실패:\n- ${previewIssues || "unknown error"}`, "error", 6000);
+      return;
+    }
+
+    const ok = loadTemplate(validation.normalized);
+    showToast(ok ? "AI로 캔버스를 생성/수정했어요." : "AI 캔버스 적용 실패.", ok ? "success" : "error");
+    aiOpen.value = false;
+  } catch (err) {
+    showToast(`AI 실행 실패: ${err?.message || String(err)}`, "error", 6000);
+  } finally {
+    aiBusy.value = false;
+  }
 }
 
 /* ─── Left Tabs ─── */
@@ -819,6 +923,11 @@ const isDataPreviewOpen = ref(false);
 const activeDataPath = ref("");
 const dataPreviewViewMode = ref("json");
 const expandedDataPaths = ref(new Set(["apiData", "state"]));
+
+/* ─── AI ─── */
+const aiOpen = ref(false);
+const aiUserPrompt = ref("");
+const aiBusy = ref(false);
 
 const jsonExport = computed(() => {
   const data = store.serializeState();

@@ -173,6 +173,42 @@ export const TEMPLATE_PRODUCT_SHOWCASE = {
   ]
 };
 
+/* ─────────────────────────────────────────────
+ * Grid scaling compatibility
+ * - The builder grid cell size changed (20px -> 10px).
+ * - `componentCatalog.js` updated defaultSize in cells accordingly.
+ * - These demo templates were authored in the old cell system,
+ *   so we scale their layouts back to the old absolute px geometry.
+ * ───────────────────────────────────────────── */
+const GRID_CELL_SCALE_FACTOR = 2;
+
+function scaleTemplateInPlace(template, factor) {
+  if (!template || !Array.isArray(template.components)) return;
+
+  for (const comp of template.components) {
+    if (comp.layout && typeof comp.layout === "object") {
+      const l = comp.layout;
+      comp.layout = {
+        x: Math.round(Number(l.x) * factor),
+        y: Math.round(Number(l.y) * factor),
+        w: Math.round(Number(l.w) * factor),
+        h: Math.round(Number(l.h) * factor),
+      };
+    }
+
+    // Container padding is px-based; scale it to keep internal spacing consistent with
+    // the updated container chrome sizing.
+    if (comp.type === "container" && comp.props && comp.props.padding != null) {
+      const pad = Number(comp.props.padding);
+      if (Number.isFinite(pad)) comp.props.padding = pad * factor;
+    }
+  }
+}
+
+scaleTemplateInPlace(TEMPLATE_CUSTOMER_LOOKUP, GRID_CELL_SCALE_FACTOR);
+scaleTemplateInPlace(TEMPLATE_MOBILE_SIGNUP, GRID_CELL_SCALE_FACTOR);
+scaleTemplateInPlace(TEMPLATE_PRODUCT_SHOWCASE, GRID_CELL_SCALE_FACTOR);
+
 
 /* ─────────────────────────────────────────────
  * Registry – used by the template selector
