@@ -235,98 +235,106 @@
           <h2 class="text-sm font-semibold text-slate-100">Property Editor</h2>
           <p class="mt-1 text-xs text-slate-400">{{ selectedComponent ? typeLabel(selectedComponent.type) : 'Select a component to edit.' }}</p>
         </div>
-        <div class="h-[calc(100%-73px)] overflow-y-auto p-4">
+        <div class="h-[calc(100%-73px)] overflow-y-auto p-3">
           <div v-if="selectedComponent" :key="selectedComponent.id">
-            <div class="space-y-3">
-              <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
 
-              <!-- Schema: 5 common attributes -->
-              <div class="rounded-md border border-slate-600/80 bg-slate-800/60 p-2">
-                <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Component identity</p>
-                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">Parent (fieldId)</span>
-                  <select class="h-8 w-full rounded-md border border-slate-600 bg-slate-800 px-2 text-xs text-slate-100" :value="selectedComponent.parentFieldId || ''" @change="onParentChange($event)">
-                    <option v-for="opt in parentSelectOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                  </select>
-                </label>
-                <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">layout (grid cells)</p>
-                <div class="grid grid-cols-4 items-center gap-1.5">
-                  <label class="flex items-center gap-1">
-                    <span class="text-[9px] text-slate-500">x</span>
-                    <input
-                      type="number"
-                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
-                      :value="layoutEditor.x"
-                      @input="patchGridPos({ x: Number(($event.target).value) })"
-                    />
+            <!-- ── 기본 식별자 필드 (항상 노출) ── -->
+            <div class="mb-3 rounded-md bg-slate-900/60 px-3 py-2.5 ring-1 ring-slate-700/80">
+              <FieldText label="Field ID" :model-value="selectedComponent.props.fieldId" @update:model-value="(v) => p('fieldId', v)" />
+            </div>
+
+            <!-- ── Collapsible sections ── -->
+            <div class="space-y-1.5">
+
+              <!-- ── Component Identity ── -->
+              <details class="group rounded-md border border-slate-600 bg-slate-800/80 [&[open]>summary_.chevron]:rotate-90">
+                <summary class="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
+                  <span class="chevron inline-block text-[10px] text-slate-400 transition-transform duration-150">▸</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-slate-300">Component Identity</span>
+                </summary>
+                <div class="space-y-2 border-t border-slate-700 px-2.5 py-2.5">
+                  <label class="block text-xs text-slate-300">
+                    <span class="mb-0.5 block font-medium text-slate-400">Parent (fieldId)</span>
+                    <select class="h-8 w-full rounded-md border border-slate-600 bg-slate-800 px-2 text-xs text-slate-100" :value="selectedComponent.parentFieldId || ''" @change="onParentChange($event)">
+                      <option v-for="opt in parentSelectOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                    </select>
                   </label>
-                  <label class="flex items-center gap-1">
-                    <span class="text-[9px] text-slate-500">y</span>
-                    <input
-                      type="number"
-                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
-                      :value="layoutEditor.y"
-                      @input="patchGridPos({ y: Number(($event.target).value) })"
-                    />
+                  <div>
+                    <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">Layout (grid cells)</p>
+                    <div class="grid grid-cols-4 items-center gap-1.5">
+                      <label class="flex items-center gap-1">
+                        <span class="text-[9px] text-slate-500">x</span>
+                        <input type="number" class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none" :value="layoutEditor.x" @input="patchGridPos({ x: Number(($event.target).value) })" />
+                      </label>
+                      <label class="flex items-center gap-1">
+                        <span class="text-[9px] text-slate-500">y</span>
+                        <input type="number" class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none" :value="layoutEditor.y" @input="patchGridPos({ y: Number(($event.target).value) })" />
+                      </label>
+                      <label class="flex items-center gap-1">
+                        <span class="text-[9px] text-slate-500">w</span>
+                        <input type="number" class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none" :value="layoutEditor.w" @input="patchGridPos({ w: Number(($event.target).value) })" />
+                      </label>
+                      <label class="flex items-center gap-1">
+                        <span class="text-[9px] text-slate-500">h</span>
+                        <input type="number" class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none" :value="layoutEditor.h" @input="patchGridPos({ h: Number(($event.target).value) })" />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <!-- ── Display & Access Logic ── -->
+              <details class="group rounded-md border border-amber-600/30 bg-amber-950/20 [&[open]>summary_.chevron]:rotate-90">
+                <summary class="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
+                  <span class="chevron inline-block text-[10px] text-amber-500/80 transition-transform duration-150">▸</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-amber-300/90">Display &amp; Access Logic</span>
+                </summary>
+                <div class="space-y-2 border-t border-amber-600/20 px-2.5 py-2.5">
+                  <label class="block text-xs text-slate-300">
+                    <span class="mb-0.5 block font-medium text-slate-400">hiddenCon</span>
+                    <textarea :value="selectedComponent.props.hiddenCon ?? ''" rows="2" class="w-full rounded-md border border-slate-600 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-200" placeholder="e.g. {{$state.flag}} or true" @input="p('hiddenCon', $event.target.value)" />
                   </label>
-                  <label class="flex items-center gap-1">
-                    <span class="text-[9px] text-slate-500">w</span>
-                    <input
-                      type="number"
-                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
-                      :value="layoutEditor.w"
-                      @input="patchGridPos({ w: Number(($event.target).value) })"
-                    />
-                  </label>
-                  <label class="flex items-center gap-1">
-                    <span class="text-[9px] text-slate-500">h</span>
-                    <input
-                      type="number"
-                      class="h-7 w-12 rounded border border-slate-600 bg-slate-900 px-1 text-[10px] text-slate-200 outline-none"
-                      :value="layoutEditor.h"
-                      @input="patchGridPos({ h: Number(($event.target).value) })"
-                    />
+                  <label class="block text-xs text-slate-300">
+                    <span class="mb-0.5 block font-medium text-slate-400">readonlyCon</span>
+                    <textarea :value="selectedComponent.props.readonlyCon ?? ''" rows="2" class="w-full rounded-md border border-slate-600 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-200" placeholder="Expression when read-only in preview" @input="p('readonlyCon', $event.target.value)" />
                   </label>
                 </div>
-              </div>
+              </details>
 
-              <div class="rounded-md border border-amber-500/25 bg-slate-800/50 p-2">
-                <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-amber-200/90">Display &amp; Access Logic</p>
-                <label class="mb-2 block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">hiddenCon</span>
-                  <textarea :value="selectedComponent.props.hiddenCon ?? ''" rows="2" class="w-full rounded-md border border-slate-600 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-200" placeholder="e.g. {{$state.flag}} or true" @input="p('hiddenCon', $event.target.value)" />
-                </label>
-                <label class="block text-xs text-slate-300"><span class="mb-0.5 block font-medium text-slate-400">readonlyCon</span>
-                  <textarea :value="selectedComponent.props.readonlyCon ?? ''" rows="2" class="w-full rounded-md border border-slate-600 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-200" placeholder="Expression when read-only in preview" @input="p('readonlyCon', $event.target.value)" />
-                </label>
-              </div>
-
+              <!-- ── 컴포넌트 타입별 일반 필드 (구분선으로 섹션 구별) ── -->
               <template v-if="selectedComponent.type !== 'container'">
-                <FieldText v-if="selectedComponent.type !== 'label'" label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
-                <FieldSelect label="Horizontal align" :model-value="selectedComponent.props.hAlign" :options="['left','center','right']" @update:model-value="(v) => p('hAlign', v)" />
-                <FieldSelect label="Vertical align" :model-value="selectedComponent.props.vAlign" :options="['top','middle','bottom']" @update:model-value="(v) => p('vAlign', v)" />
+                <div class="space-y-2 rounded-md bg-slate-900/40 px-2.5 py-2.5 ring-1 ring-slate-700/60">
+                  <FieldText v-if="selectedComponent.type !== 'label'" label="Label" :model-value="selectedComponent.props.label" @update:model-value="(v) => p('label', v)" />
+                  <FieldSelect label="Horizontal align" :model-value="selectedComponent.props.hAlign" :options="['left','center','right']" @update:model-value="(v) => p('hAlign', v)" />
+                  <FieldSelect label="Vertical align" :model-value="selectedComponent.props.vAlign" :options="['top','middle','bottom']" @update:model-value="(v) => p('vAlign', v)" />
+                </div>
               </template>
 
-              <!-- ═══ Events ═══ -->
-              <div class="rounded-md border border-slate-700 bg-slate-800/40 p-2">
-                <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Events</p>
-
-                <!-- onPageLoad -->
-                <div class="mb-2">
-                  <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onPageLoad</label>
-                  <EventActionEditor :actions="currentEvents.onPageLoad" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onPageLoad', a)" />
+              <!-- ── Events ── -->
+              <details class="group rounded-md border border-slate-600 bg-slate-800/80 [&[open]>summary_.chevron]:rotate-90">
+                <summary class="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
+                  <span class="chevron inline-block text-[10px] text-slate-400 transition-transform duration-150">▸</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-slate-300">Events</span>
+                  <span v-if="totalEventCount > 0" class="ml-auto rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-blue-300 ring-1 ring-blue-500/30">{{ totalEventCount }}</span>
+                </summary>
+                <div class="space-y-2.5 border-t border-slate-700 px-2.5 py-2.5">
+                  <div>
+                    <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onPageLoad</label>
+                    <EventActionEditor :actions="currentEvents.onPageLoad" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onPageLoad', a)" />
+                  </div>
+                  <div v-if="['action-button','card-list-repeater'].includes(selectedComponent.type)">
+                    <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onClick</label>
+                    <EventActionEditor :actions="currentEvents.onClick" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onClick', a)" />
+                  </div>
+                  <div v-if="['text-input','combo-box','radio-group','checkbox-group','date-picker'].includes(selectedComponent.type)">
+                    <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onChange</label>
+                    <EventActionEditor :actions="currentEvents.onChange" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onChange', a)" />
+                  </div>
                 </div>
+              </details>
 
-                <!-- onClick (button / card) -->
-                <div v-if="['action-button','card-list-repeater'].includes(selectedComponent.type)" class="mb-2">
-                  <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onClick</label>
-                  <EventActionEditor :actions="currentEvents.onClick" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onClick', a)" />
-                </div>
-
-                <!-- onChange (input / combo) -->
-                <div v-if="['text-input','combo-box','radio-group','checkbox-group','date-picker'].includes(selectedComponent.type)">
-                  <label class="mb-0.5 block text-[9px] font-semibold text-slate-500">onChange</label>
-                  <EventActionEditor :actions="currentEvents.onChange" :order-events="state.logic.orderEvents" :variables="state.logic.variables" @update="(a) => setEventActions('onChange', a)" />
-                </div>
-              </div>
+              <!-- ── 타입별 속성 필드 ── -->
+              <div class="space-y-2 rounded-md bg-slate-900/40 px-2.5 py-2.5 ring-1 ring-slate-700/60">
 
               <!-- Container -->
               <template v-if="selectedComponent.type === 'container'">
@@ -470,12 +478,14 @@
                 <FieldText label="Placeholder" :model-value="selectedComponent.props.placeholder" @update:model-value="(v) => p('placeholder', v)" />
                 <FieldText label="Date Format" :model-value="selectedComponent.props.dateFormat" @update:model-value="(v) => p('dateFormat', v)" />
               </template>
-            </div>
-          </div>
+
+              </div><!-- /타입별 속성 필드 -->
+            </div><!-- /Collapsible sections -->
+          </div><!-- /v-if selectedComponent -->
           <div v-else class="flex h-full items-center justify-center">
             <p class="text-center text-sm text-slate-400">Click a component on the canvas<br />to edit its properties.</p>
           </div>
-        </div>
+        </div><!-- /h-[calc...] -->
       </aside>
     </div>
 
@@ -806,6 +816,12 @@ const currentEvents = computed(() => {
     onChange: ev?.onChange ?? []
   };
 });
+
+const totalEventCount = computed(() =>
+  (currentEvents.value.onPageLoad?.length ?? 0) +
+  (currentEvents.value.onClick?.length ?? 0) +
+  (currentEvents.value.onChange?.length ?? 0)
+);
 
 function setEventActions(trigger, actions) {
   const c = selectedComponent.value;
