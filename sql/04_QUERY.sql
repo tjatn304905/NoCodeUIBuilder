@@ -321,3 +321,19 @@ FROM       TB_PFCM_UI_CMP_M      cm
 INNER JOIN TB_PFCM_UI_CMP_ATTR_M am ON am.UI_CMP_ID = cm.UI_CMP_ID
 GROUP BY cm.UI_CMP_ID, cm.CMP_KD_CD, cm.CMP_GRP_ID
 ORDER BY cm.CMP_GRP_ID, cm.CMP_KD_CD;
+
+
+-- ──────────────────────────────────────────
+-- [Q11] 화면 목록 조회 (활성 버전 기준, 사용 여부 필터링)
+--       화면ID, 화면명, 활성버전, 사용여부, 수정일시
+--      사용여부(:use_yn) 파라미터로 Y/N 필터링 가능 (NULL이면 전체)
+-- ──────────────────────────────────────────
+SELECT
+    UI_SCRN_ID   AS 화면ID,
+    UI_SCRN_NM   AS 화면명,
+    ACTV_VER_NO  AS 활성버전,
+    USE_YN       AS 사용여부,
+    DATA_UPD_DTTM AS 수정일시
+FROM TB_PFCM_UI_SCRN_M
+WHERE (:use_yn IS NULL OR USE_YN = :use_yn)
+ORDER BY DATA_UPD_DTTM DESC, UI_SCRN_ID;

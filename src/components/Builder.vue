@@ -33,10 +33,10 @@
         </button>
       </div>
       <div class="flex items-center gap-2">
-        <!-- Template Selector -->
-        <select v-model="selectedTemplate" class="h-8 rounded-md border border-slate-600 bg-slate-800 px-2 text-[11px] text-slate-200 focus:border-blue-400 focus:outline-none" @change="onTemplateSelect">
-          <option value="">— Load Template —</option>
-          <option v-for="t in DEMO_TEMPLATES" :key="t.key" :value="t.key">{{ t.label }}</option>
+        <!-- Screen / Template Selector -->
+        <select v-model="selectedTemplate" class="h-8 rounded-md border border-slate-600 bg-slate-800 px-2 text-[11px] text-slate-200 focus:border-blue-400 focus:outline-none" :disabled="screenListLoading" @change="onTemplateSelect">
+          <option value="">{{ screenListLoading ? '화면 목록 로딩중…' : '화면 선택' }}</option>
+          <option v-for="s in screenList" :key="s.uiScrnId" :value="'scrn:' + s.uiScrnId">{{ s.uiScrnNm }}</option>
         </select>
         <div class="h-5 w-px bg-slate-700" />
         <!-- Import -->
@@ -721,12 +721,13 @@ import EventActionEditor from "./EventActionEditor.vue";
 import AILoadingOverlay from "./AILoadingOverlay.vue";
 import { FieldText, FieldNumber, FieldSelect, FieldColor, FieldCheck } from "./FieldComponents.js";
 import { COMPONENT_CATALOG, COLS, CANVAS_WIDTH, CELL_SIZE, MOCK_API_DATA, CONTAINER_TYPES } from "../data/componentCatalog";
-import { DEMO_TEMPLATES } from "../data/demoTemplates";
+
 import { useBuilderStore } from "../stores/builderStore";
 import { PREVIEW_CTX } from "../runtime/previewContext";
 import { getPath } from "../runtime/runtimeEngine";
 import { generateScreenFromPrompt, AI_STAGES } from "../ai/fakeAIService";
 import { validateAndNormalizeBuilderState } from "../ai/builderStateValidator";
+import { loadInitialData, retrieveScrnList, retrieveScrnHist } from "../api/uiApi";
 
 const store = useBuilderStore();
 const {
@@ -769,7 +770,43 @@ function handleKeyboard(e) {
   else if (ctrl && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
 }
 
-onMounted(() => { window.addEventListener("keydown", handleKeyboard); });
+/* ─── API 응답 확인용 (기능 미적용) ─── */
+const apiInitialData = ref(null);  // { cmpAttrs, scrnCmps, scrnHist, errors }
+const apiLoading = ref(false);
+
+/** 페이지 로드 시 API 3종 호출 — 응답 shape 확인용, 실제 기능 미적용 */
+async function fetchInitialApiData() {
+  const TEST_SCRN_ID = "sc010000000000000000000000000000"; // Customer Lookup
+  apiLoading.value = true;
+  try {
+    const data = await loadInitialData(TEST_SCRN_ID);
+    apiInitialData.value = data;
+    console.group("[UI Builder] ── Initial API Load ──");
+    console.log("[Q1] retrieveCmpAttrList  →", data.cmpAttrs);
+    console.log("[Q2] retrieveScrnCmpList  →", data.scrnCmps);
+    console.log("[Q3] retrieveScrnHist     →", data.scrnHist);
+    const hasErrors = Object.values(data.errors).some(Boolean);
+    if (hasErrors) {
+      console.warn("[API Errors]", data.errors);
+      showToast("API 일부 호출 실패 (콘솔 확인)", "error", 4000);
+    } else {
+      console.info("[UI Builder] 3개 API 모두 성공 — 콘솔에서 응답 shape를 확인하세요.");
+      showToast("API 응답 로드 완료 (콘솔 확인)", "info", 3000);
+    }
+    console.groupEnd();
+  } catch (err) {
+    console.error("[UI Builder] API load failed:", err);
+    showToast("API 초기 로드 실패", "error", 4000);
+  } finally {
+    apiLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("keydown", handleKeyboard);
+  fetchInitialApiData();
+  fetchScreenList();
+});
 onUnmounted(() => { window.removeEventListener("keydown", handleKeyboard); });
 
 /* ─── Persistence actions ─── */
@@ -809,20 +846,58 @@ function onExportJson() {
   showToast("JSON file downloaded!", "success");
 }
 
-/* ─── Template selector ─── */
+/* ─── Screen list + Template selector ─── */
 const selectedTemplate = ref("");
+const screenList = ref([]);
+const screenListLoading = ref(false);
 
-function onTemplateSelect() {
+async function fetchScreenList() {
+  screenListLoading.value = true;
+  try {
+    const list = await retrieveScrnList("Y");
+    screenList.value = Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.warn("[UI Builder] 화면 목록 조회 실패:", err);
+    screenList.value = [];
+  } finally {
+    screenListLoading.value = false;
+  }
+}
+
+async function onTemplateSelect() {
   if (!selectedTemplate.value) return;
-  const tpl = DEMO_TEMPLATES.find((t) => t.key === selectedTemplate.value);
-  if (!tpl) return;
-  if (state.components.length > 0 && !confirm(`Load template "${tpl.label}"? Current workspace will be replaced.`)) {
+
+  // ── 서버 화면 선택 (scrn: prefix) ──
+  if (selectedTemplate.value.startsWith("scrn:")) {
+    const scrnId = selectedTemplate.value.slice(5);
+    const scrnItem = screenList.value.find((s) => s.uiScrnId === scrnId);
+    const scrnLabel = scrnItem?.uiScrnNm ?? scrnId;
+    if (state.components.length > 0 && !confirm(`화면 "${scrnLabel}" 을(를) 로드하시겠습니까? 현재 작업 내용이 교체됩니다.`)) {
+      selectedTemplate.value = "";
+      return;
+    }
+    try {
+      showToast(`"${scrnLabel}" 로딩중…`, "info", 10000);
+      const histData = await retrieveScrnHist(scrnId);
+      if (!histData) {
+        showToast(`"${scrnLabel}" — 활성 버전 이력이 없습니다.`, "error", 4000);
+        selectedTemplate.value = "";
+        return;
+      }
+      // histData 가 SCRN_JSON_CNTN 형태(= { screenInfo, logic, components }) 라고 가정
+      const jsonPayload = histData.scrnJsonCntn ?? histData;
+      const ok = loadTemplate(typeof jsonPayload === "string" ? JSON.parse(jsonPayload) : jsonPayload);
+      showToast(ok ? `"${scrnLabel}" 로드 완료!` : `"${scrnLabel}" 로드 실패.`, ok ? "success" : "error");
+    } catch (err) {
+      console.error("[UI Builder] retrieveScrnHist error:", err);
+      showToast(`화면 로드 실패: ${err.message}`, "error", 4000);
+    }
     selectedTemplate.value = "";
     return;
   }
-  const ok = loadTemplate(tpl.data);
-  showToast(ok ? `Template "${tpl.label}" loaded!` : "Template load failed.", ok ? "success" : "error");
+
 }
+
 
 function copyJsonExport() {
   navigator.clipboard?.writeText(jsonExport.value).then(
