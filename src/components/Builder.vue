@@ -36,7 +36,12 @@
         <!-- Screen / Template Selector -->
         <select v-model="selectedTemplate" class="h-8 rounded-md border border-slate-600 bg-slate-800 px-2 text-[11px] text-slate-200 focus:border-blue-400 focus:outline-none" :disabled="screenListLoading" @change="onTemplateSelect">
           <option value="">{{ screenListLoading ? '화면 목록 로딩중…' : '화면 선택' }}</option>
-          <option v-for="s in screenList" :key="s.uiScrnId" :value="'scrn:' + s.uiScrnId">{{ s.uiScrnNm }}</option>
+          <optgroup v-if="screenList.length" label="서버 화면">
+            <option v-for="s in screenList" :key="s.uiScrnId" :value="'scrn:' + s.uiScrnId">{{ s.uiScrnNm }}</option>
+          </optgroup>
+          <optgroup label="Demo Templates">
+            <option v-for="t in DEMO_TEMPLATES" :key="t.key" :value="t.key">{{ t.label }}</option>
+          </optgroup>
         </select>
         <div class="h-5 w-px bg-slate-700" />
         <!-- Import -->
@@ -728,6 +733,7 @@ import { getPath } from "../runtime/runtimeEngine";
 import { generateScreenFromPrompt, AI_STAGES } from "../ai/fakeAIService";
 import { validateAndNormalizeBuilderState } from "../ai/builderStateValidator";
 import { loadInitialData, retrieveScrnList, retrieveScrnHist } from "../api/uiApi";
+import { DEMO_TEMPLATES } from "../data/demoTemplates";
 
 const store = useBuilderStore();
 const {
@@ -896,6 +902,15 @@ async function onTemplateSelect() {
     return;
   }
 
+  // ── 로컬 데모 템플릿 선택 ──
+  const tpl = DEMO_TEMPLATES.find((t) => t.key === selectedTemplate.value);
+  if (!tpl) return;
+  if (state.components.length > 0 && !confirm(`Load template "${tpl.label}"? Current workspace will be replaced.`)) {
+    selectedTemplate.value = "";
+    return;
+  }
+  const ok = loadTemplate(tpl.data);
+  showToast(ok ? `Template "${tpl.label}" loaded!` : "Template load failed.", ok ? "success" : "error");
 }
 
 
